@@ -55,7 +55,7 @@ document, the log, the Phase 1 database schema, and its tests.
 |---|---|---|
 | 0 | College domain list | **Not started — needs the owner**, see §7 |
 | 1 | Auth, verification, trust tiers, profile | **Schema + tests done.** No app, no Edge Functions |
-| 2 | Friends, DMs, block/report primitives | Not started |
+| 2 | Friends, DMs, block/report primitives | **Schema + tests done.** No UI |
 | 3 | Groups | Not started |
 | 4 | Looty Match | Not started |
 | 5 | Automatic moderation engine | Not started |
@@ -65,9 +65,11 @@ document, the log, the Phase 1 database schema, and its tests.
 ### What exists right now
 
 ```
-supabase/migrations/   4 migrations: colleges + domain allowlist, profiles,
-                       verifications + bans + access gate, RLS + column grants
-supabase/tests/run.mjs 35 behaviour tests, run with `npm run test:db`
+supabase/migrations/   8 migrations. Phase 1: colleges + domain allowlist,
+                       profiles, verifications + bans + access gate, RLS +
+                       column grants. Phase 2: blocks + friendships, threads +
+                       messages, reports, Phase 2 RLS
+supabase/tests/run.mjs 66 behaviour tests, run with `npm run test:db`
 supabase/seed.sql      sample colleges; domain list deliberately EMPTY
 mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/lib/tiers.ts     client mirror of the server tier gate — NOT security
@@ -86,9 +88,14 @@ Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
 
 ### Verified so far
 
-`npm run test:db` passes 35/35. `npx tsc --noEmit` is clean, and
+`npm run test:db` passes 66/66. `npx tsc --noEmit` is clean, and
 `npx expo export --platform android` produces a bundle, which proves imports
 resolve. Nothing has been run on a device or emulator.
+
+The Phase 2 tests run as an actual `authenticated` role with a JWT claim set, so
+RLS genuinely applies to them. Phase 1 tests run as superuser and therefore check
+grant *metadata* rather than live enforcement — a weaker guarantee, worth knowing
+when reading them.
 
 ### Still missing from Phase 1
 

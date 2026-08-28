@@ -202,6 +202,194 @@ await check('past end year is alumni', async () =>
 await check('null end year is not alumni', async () =>
   eq((await one(`select coalesce(is_alumni(null),false) a`)).a, false));
 
+// ---------------------------------------------------------------------------
+// Phase 2 — exercised as a real `authenticated` user so RLS actually applies.
+// Everything above this line runs as superuser and therefore bypasses RLS; these
+// tests are the ones that prove the security boundary rather than its metadata.
+// ---------------------------------------------------------------------------
+
+await db.exec(`grant usage on schema public to authenticated`);
+
+async function asUser(uid, fn) {
+  await db.query(`select set_config('request.jwt.claim.sub', $1, false)`, [uid]);
+  await db.exec(`set role authenticated`);
+  try {
+    return await fn();
+  } finally {
+    await db.exec(`reset role`);
+  }
+}
+/**
+ * RLS refuses in two different ways, and conflating them hides real bugs:
+ *
+ *   INSERT  violating a WITH CHECK raises an error        → use denied()
+ *   UPDATE / DELETE / SELECT  a USING clause that does not match simply makes the
+ *           row invisible, so the statement succeeds against ZERO rows → noEffect()
+ *
+ * A test that only looks for a thrown error will pass an UPDATE that was actually
+ * refused, and would equally pass one that wasn't. Hence two helpers.
+ */
+async function denied(uid, sql, params = []) {
+  return asUser(uid, async () => {
+    try {
+      await db.query(sql, params);
+      throw new Error('expected the database to refuse this, but it succeeded');
+    } catch (e) {
+      if (e.message.startsWith('expected the database')) throw e;
+    }
+  });
+}
+async function noEffect(uid, sql, params = []) {
+  return asUser(uid, async () => {
+    const r = await db.query(sql, params);
+    const n = r.affectedRows ?? 0;
+    if (n > 0) throw new Error(`expected RLS to match no rows, but ${n} were changed`);
+  });
+}
+
+// Fresh cast: three verified students, all old enough to report.
+const users = {};
+for (const name of ['ana', 'bo', 'cy']) {
+  const { rows: [u] } = await db.query(
+    `insert into auth.users (email) values ($1) returning id`, [`${name}@iitb.ac.in`]);
+  users[name] = u.id;
+  // Usernames must be 3–20 chars, so the short fixture keys get a suffix.
+  await db.query(
+    `update profiles set username=$2, trust_tier=1, college_id=$3,
+       created_at = now() - interval '30 days' where id=$1`,
+    [u.id, `${name}_looty`, college.id]);
+}
+const { ana, bo, cy } = users;
+
+console.log('\nFriendships');
+await check('Tier 1 user can send a request', () =>
+  asUser(ana, () => db.query(
+    `insert into friendships (requester_id, addressee_id) values ($1,$2)`, [ana, bo])));
+await check('reverse duplicate request is refused', () =>
+  denied(bo, `insert into friendships (requester_id, addressee_id) values ($1,$2)`, [bo, ana]));
+await check('requester cannot accept their own request', async () => {
+  await noEffect(ana, `update friendships set status='accepted' where requester_id=$1`, [ana]);
+  eq((await one(`select status from friendships where requester_id=$1`, [ana])).status, 'pending');
+});
+await check('addressee can accept', () =>
+  asUser(bo, () => db.query(`update friendships set status='accepted' where addressee_id=$1`, [bo])));
+await check('Tier 0 user cannot send a request', async () => {
+  await db.query(`update profiles set trust_tier=0 where id=$1`, [cy]);
+  await denied(cy, `insert into friendships (requester_id, addressee_id) values ($1,$2)`, [cy, ana]);
+  await db.query(`update profiles set trust_tier=1 where id=$1`, [cy]);
+});
+await check('cannot forge a request from someone else', () =>
+  denied(cy, `insert into friendships (requester_id, addressee_id) values ($1,$2)`, [ana, cy]));
+
+console.log('\nDM threads');
+await check('open_dm_thread works between friends', () =>
+  asUser(ana, async () => {
+    const r = await db.query(`select open_dm_thread($1) id`, [bo]);
+    if (!r.rows[0].id) throw new Error('no thread returned');
+  }));
+await check('opening twice returns the same thread', () =>
+  asUser(bo, async () => {
+    const a = (await db.query(`select open_dm_thread($1) id`, [ana])).rows[0].id;
+    const n = (await db.query(`select count(*) c from threads where type='dm'`)).rows[0].c;
+    eq(n, 1, 'thread count'); if (!a) throw new Error('no id');
+  }));
+await check('cannot open a thread with a non-friend', () =>
+  denied(ana, `select open_dm_thread($1)`, [cy]));
+
+console.log('\nMessages');
+const threadId = (await db.query(`select id from threads limit 1`)).rows[0].id;
+await check('participant can send', () =>
+  asUser(ana, () => db.query(
+    `insert into messages (thread_id, sender_id, body) values ($1,$2,'hey')`, [threadId, ana])));
+await check('non-participant cannot send', () =>
+  denied(cy, `insert into messages (thread_id, sender_id, body) values ($1,$2,'intruding')`, [threadId, cy]));
+await check('non-participant cannot read', () =>
+  asUser(cy, async () => {
+    const r = await db.query(`select count(*) c from messages where thread_id=$1`, [threadId]);
+    eq(r.rows[0].c, 0, 'messages visible to outsider');
+  }));
+await check('cannot send as another user', () =>
+  denied(bo, `insert into messages (thread_id, sender_id, body) values ($1,$2,'forged')`, [threadId, ana]));
+await check('empty message refused', () =>
+  denied(ana, `insert into messages (thread_id, sender_id, body) values ($1,$2,'   ')`, [threadId, ana]));
+await check('image-only message allowed', () =>
+  asUser(ana, () => db.query(
+    `insert into messages (thread_id, sender_id, image_url) values ($1,$2,'s3://x.jpg')`, [threadId, ana])));
+await check('messages are not editable by anyone', async () => {
+  const r = await one(`select count(*) c from information_schema.column_privileges
+    where table_name='messages' and grantee='authenticated' and privilege_type='UPDATE'`);
+  eq(r.c, 0);
+});
+await check('cannot delete the other side’s message', async () => {
+  const before = (await one(`select count(*) c from messages where sender_id=$1`, [ana])).c;
+  await noEffect(bo, `delete from messages where sender_id=$1`, [ana]);
+  eq((await one(`select count(*) c from messages where sender_id=$1`, [ana])).c, before, 'ana messages');
+});
+
+console.log('\nBlocking');
+await check('blocking is symmetric in effect', async () => {
+  await asUser(cy, () => db.query(`insert into blocks (blocker_id, blocked_id) values ($1,$2)`, [cy, ana]));
+  eq((await one(`select is_blocked_pair($1,$2) b`, [ana, cy])).b, true, 'ana→cy');
+  eq((await one(`select is_blocked_pair($1,$2) b`, [cy, ana])).b, true, 'cy→ana');
+});
+await check('blocked party cannot discover the block', () =>
+  asUser(ana, async () => {
+    const r = await db.query(`select count(*) c from blocks`);
+    eq(r.rows[0].c, 0, 'blocks visible to blocked user');
+  }));
+await check('blocked users disappear from profile reads', () =>
+  asUser(ana, async () => {
+    const r = await db.query(`select count(*) c from profiles where id=$1`, [cy]);
+    eq(r.rows[0].c, 0, 'blocker still visible');
+  }));
+await check('self-block refused', () =>
+  denied(ana, `insert into blocks (blocker_id, blocked_id) values ($1,$1)`, [ana]));
+await check('blocking tears down the friendship', async () => {
+  await asUser(ana, () => db.query(`insert into blocks (blocker_id, blocked_id) values ($1,$2)`, [ana, bo]));
+  eq((await one(`select count(*) c from friendships`)).c, 0, 'friendship survived a block');
+});
+await check('blocked pair cannot post to their old thread', () =>
+  denied(ana, `insert into messages (thread_id, sender_id, body) values ($1,$2,'still here')`, [threadId, ana]));
+
+console.log('\nReports');
+await check('eligible user can report', () =>
+  asUser(ana, () => db.query(
+    `insert into reports (reporter_id, target_id, context, reason) values ($1,$2,'profile','harassment')`,
+    [ana, cy])));
+await check('same reporter cannot report the same target twice', () =>
+  denied(ana, `insert into reports (reporter_id, target_id, context, reason)
+               values ($1,$2,'dm','spam')`, [ana, cy]));
+await check('blocking does NOT prevent reporting', () =>
+  asUser(cy, () => db.query(
+    `insert into reports (reporter_id, target_id, context, reason) values ($1,$2,'profile','harassment')`,
+    [cy, ana])));
+await check('self-report refused', () =>
+  denied(ana, `insert into reports (reporter_id, target_id, context, reason)
+               values ($1,$1,'profile','spam')`, [ana]));
+await check('account younger than 7 days cannot report', async () => {
+  const { rows: [u] } = await db.query(`insert into auth.users (email) values ('new@iitb.ac.in') returning id`);
+  await db.query(`update profiles set trust_tier=1, created_at=now() - interval '2 days' where id=$1`, [u.id]);
+  await denied(u.id, `insert into reports (reporter_id, target_id, context, reason)
+                      values ($1,$2,'profile','spam')`, [u.id, bo]);
+});
+await check('Tier 0 user cannot report', async () => {
+  await db.query(`update profiles set trust_tier=0 where id=$1`, [cy]);
+  await denied(cy, `insert into reports (reporter_id, target_id, context, reason)
+                    values ($1,$2,'profile','spam')`, [cy, bo]);
+  await db.query(`update profiles set trust_tier=1 where id=$1`, [cy]);
+});
+await check('banned user cannot report', async () => {
+  await db.query(`insert into bans (user_id,type,ends_at) values ($1,'temporary',now()+interval '5 days')`, [bo]);
+  await denied(bo, `insert into reports (reporter_id, target_id, context, reason)
+                    values ($1,$2,'profile','spam')`, [bo, cy]);
+  await db.query(`delete from bans where user_id=$1`, [bo]);
+});
+await check('reports cannot be read back by anyone', async () => {
+  const r = await one(`select count(*) c from information_schema.table_privileges
+    where table_name='reports' and grantee='authenticated' and privilege_type='SELECT'`);
+  eq(r.c, 0, 'SELECT grants on reports');
+});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await db.close();
 process.exit(fail ? 1 : 0);

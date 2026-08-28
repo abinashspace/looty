@@ -15,6 +15,53 @@
 
 ---
 
+## 2026-08-28 — Phase 2 schema: friendships, blocks, DMs, reports
+
+Four migrations and 31 new tests (66 total, all passing). Friendships with
+directional request but symmetric uniqueness, blocks, 1:1 threads, messages, and
+report capture.
+
+**Design decisions:**
+
+- **Friendship pairs are unique in both directions** via an expression index on
+  `least/greatest` of the two ids. Who asked still matters — only the addressee may
+  accept — but A→B and B→A cannot both sit pending forever.
+- **Threads store the pair in canonical order** (`user_a < user_b`), so "one thread
+  per pair per type" falls out of a plain unique constraint instead of every call
+  site having to check both directions.
+- **Threads have no INSERT grant.** They are created only through
+  `open_dm_thread()`, which verifies the friendship and enforces the ordering.
+- **Messages are not editable by anyone** — no UPDATE grant at all. A report is
+  judged on what was actually sent, and editable history makes every report
+  unfalsifiable. Senders may delete their own; recipients may not delete the other
+  side's, for the same reason.
+- **`can_post_to_thread()` re-checks everything at send time** — participation,
+  tier, ban, block, thread state — rather than trusting that any of it still held
+  when the thread was opened.
+- **Blocking tears down the friendship** rather than hiding it, via a trigger.
+  Merely hiding would make the pair reappear the moment a block was lifted, which
+  is not what "block" means to a user.
+- **Reports are write-only from the client.** No SELECT policy at all, not even for
+  your own: knowing a report landed tells a brigade how close it is to the
+  threshold, and knowing you were reported tells you to switch accounts.
+
+**Bug caught while writing the RLS:** the report policy initially required that no
+block existed between reporter and target. That is backwards — blocking and
+reporting are the same gesture for someone being harassed, usually block first then
+report. It would have disabled the safety system exactly when it was needed.
+Removed, with a comment explaining why it must not come back.
+
+**Testing approach changed, and this matters.** Phase 2 tests run as a real
+`authenticated` role with a JWT claim set, so RLS actually applies — Phase 1 tests
+run as superuser and only inspect grant metadata. Writing them surfaced that **RLS
+refuses in two different ways**: an INSERT violating WITH CHECK raises an error, but
+an UPDATE or DELETE whose USING clause does not match simply affects zero rows and
+succeeds. A test that only catches thrown errors will pass whether or not the policy
+works. There are now two helpers, `denied()` and `noEffect()`, and the difference is
+documented in the test file.
+
+---
+
 ## 2026-08-28 — Expo app scaffolded; repo made private
 
 Scaffolded the Expo app into `mobile/` (SDK 57, RN 0.86, React 19.2) with

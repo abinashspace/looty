@@ -168,6 +168,17 @@ await check('authenticated cannot read phone_hash', async () => {
     where table_name='profiles' and column_name='phone_hash' and grantee='authenticated'`);
   eq(r.c, 0, 'phone_hash grants');
 });
+await check('onboarding fields readable but not writable', async () => {
+  for (const col of ['phone_verified_at', 'onboarding_complete']) {
+    const r = await one(`select
+        count(*) filter (where privilege_type='SELECT') sel,
+        count(*) filter (where privilege_type in ('UPDATE','INSERT')) wr
+      from information_schema.column_privileges
+      where table_name='profiles' and column_name=$1 and grantee='authenticated'`, [col]);
+    eq(r.sel, 1, `${col} SELECT grant`);
+    eq(r.wr, 0, `${col} write grants`);
+  }
+});
 await check('banned_phone_hashes has no client grants at all', async () => {
   const r = await one(`select count(*) c from information_schema.table_privileges
     where table_name='banned_phone_hashes' and grantee in ('anon','authenticated')`);

@@ -15,6 +15,53 @@
 
 ---
 
+## 2026-08-28 — Expo app scaffolded; repo made private
+
+Scaffolded the Expo app into `mobile/` (SDK 57, RN 0.86, React 19.2) with
+expo-router, the Supabase client, a session/profile context, and the full
+navigation shell. Every screen is a placeholder naming its phase.
+
+**Repo switched from public to private** before the first push, per the flag raised
+in the previous entry. The commit was also re-authored to the GitHub noreply address
+— GitHub's email privacy protection rejected the push otherwise.
+
+**Layout decision:** monorepo-ish. `mobile/` holds the app, `supabase/` holds
+migrations and tests, and the root `package.json` runs the database tests. Keeps the
+Expo scaffold from colliding with the test tooling.
+
+**Two things changed in the schema as a result of building the client:**
+
+- `phone_verified_at` and `onboarding_complete` had to be **granted to
+  `authenticated`** — the app cannot tell which signup step to show without them.
+  Column grants are role-wide, so these are now readable about other users too.
+  Accepted deliberately: a timestamp saying someone finished onboarding is not
+  sensitive. `phone_hash` and `full_name` remain ungranted, which is the part that
+  matters. A test now pins them as readable-but-not-writable.
+- Migration files were edited in place rather than superseded, since nothing is
+  deployed yet.
+
+**Bug caught by bundling:** `supabase.ts` threw at import time when `.env` was
+missing, which would red-screen the app before anything rendered. Changed to export
+an `isSupabaseConfigured` flag and fall back to a setup screen, so the shell can be
+run and navigated before a Supabase project exists.
+
+**Design decisions in the client:**
+
+- `src/lib/tiers.ts` is documented as **not security**. It exists so the UI can pick
+  the right screen; the database refuses gated queries on its own. If the two ever
+  disagree, the database is right.
+- **Gated tabs stay visible at Tier 0** rather than being hidden. An unverified user
+  should see what verification unlocks — that is the point of Tier 0 being a usable
+  browsing state rather than a wall.
+- **A ban is not a logout.** Banned users keep the account, can still read groups,
+  and can file an appeal.
+
+**Verified:** 35/35 database tests pass, `tsc --noEmit` clean, and
+`expo export --platform android` bundles successfully. Nothing has been run on a
+device — there is no emulator on this machine and no Supabase project yet.
+
+---
+
 ## 2026-08-28 — Phase 1 database schema written and tested
 
 Four migrations under `supabase/migrations/`: colleges + domain allowlist,

@@ -59,9 +59,15 @@ create policy college_requests_insert_own on public.college_requests
 -- NOTE Phase 2: the read policy must additionally exclude users who have blocked
 -- the caller, or whom the caller has blocked. The blocks table does not exist yet.
 
+-- phone_verified_at and onboarding_complete are granted because the client must
+-- know which signup step to show next. Column grants are role-wide, so these are
+-- readable about other users too — accepted deliberately: a timestamp saying
+-- someone finished onboarding is not sensitive. The phone NUMBER (phone_hash) and
+-- the legal name (full_name) remain ungranted, which is what actually matters.
 grant select (
   id, username, display_name, dp_url, college_id,
-  course_years, start_year, end_year, gender, trust_tier, created_at
+  course_years, start_year, end_year, gender, trust_tier, created_at,
+  phone_verified_at, onboarding_complete
 ) on public.profiles to authenticated;
 
 grant insert (

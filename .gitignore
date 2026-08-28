@@ -3,10 +3,13 @@ node_modules/
 .env.*
 !.env.example
 
-# Expo / React Native (arrives in Phase 1)
+# Expo / React Native
 .expo/
+.expo-export/
 dist/
 web-build/
+android/
+ios/
 *.jks
 *.p8
 *.p12

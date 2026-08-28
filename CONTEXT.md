@@ -67,19 +67,34 @@ document, the log, the Phase 1 database schema, and its tests.
 ```
 supabase/migrations/   4 migrations: colleges + domain allowlist, profiles,
                        verifications + bans + access gate, RLS + column grants
-supabase/tests/run.mjs 34 behaviour tests, run with `npm run test:db`
+supabase/tests/run.mjs 35 behaviour tests, run with `npm run test:db`
 supabase/seed.sql      sample colleges; domain list deliberately EMPTY
+mobile/                Expo app (SDK 57, RN 0.86), Android-only
+  src/lib/tiers.ts     client mirror of the server tier gate — NOT security
+  src/lib/session.tsx  auth session + profile + signup step resolution
+  src/lib/supabase.ts  client; degrades to a setup screen when .env is absent
+  src/app/(auth)/      sign-in, phone, college, verify, profile-setup
+  src/app/(app)/       tabs: groups, match, looted, chats, profile
 ```
 
-The tests run against an in-process Postgres (pglite), so they need **no Docker and
-no Supabase project**. They are not a substitute for testing against real Supabase —
-`auth.users`, `auth.uid()` and the client roles are stubbed.
+Every screen under `src/app` is a **placeholder** naming the phase that will fill it
+in. The navigation shell, tier gating and routing are real; nothing behind them is.
+
+The database tests run against an in-process Postgres (pglite), so they need **no
+Docker and no Supabase project**. They are not a substitute for testing against real
+Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
+
+### Verified so far
+
+`npm run test:db` passes 35/35. `npx tsc --noEmit` is clean, and
+`npx expo export --platform android` produces a bundle, which proves imports
+resolve. Nothing has been run on a device or emulator.
 
 ### Still missing from Phase 1
 
-The Expo app itself, Google Sign-In, phone OTP, the vision Edge Function that writes
-verification results, the storage buckets for ID images, and the scheduled sweep
-that deletes those images after 30 days.
+Google Sign-In, phone OTP, the vision Edge Function that writes verification
+results, the storage buckets for ID images, and the scheduled sweep that deletes
+those images after 30 days. All of these are blocked on credentials — see above.
 
 ### Blocked on the user (cannot proceed without these)
 

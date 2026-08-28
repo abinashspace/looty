@@ -97,18 +97,35 @@ RLS genuinely applies to them. Phase 1 tests run as superuser and therefore chec
 grant *metadata* rather than live enforcement — a weaker guarantee, worth knowing
 when reading them.
 
+**Against the live database:** all 13 tables exist, and every one of them refuses
+the `anon` role outright (`42501 permission denied`). That matters more than it
+looks — the anon key ships inside the APK and anyone can extract it in a minute, so
+"anon can read nothing" is the property that keeps the whole database private.
+
+Not yet verified live: authenticated-role behaviour. That would mean creating a real
+user in the production project, which has not been done.
+
 ### Still missing from Phase 1
 
 Google Sign-In, phone OTP, the vision Edge Function that writes verification
 results, the storage buckets for ID images, and the scheduled sweep that deletes
 those images after 30 days. All of these are blocked on credentials — see above.
 
+### Live infrastructure
+
+**Supabase project `zsfjwlmeeodsiwruvine`**, region `ap-south-1` (Mumbai),
+Postgres 17.6, on the free plan. All 8 migrations are deployed. The repo is linked
+via the Supabase CLI, so `npx supabase db push` applies new migrations directly —
+it authenticates with the stored access token and does not prompt for the database
+password.
+
+`mobile/.env` holds the project URL and anon key. It is gitignored; recreate it
+from `mobile/.env.example` if it goes missing.
+
 ### Blocked on the user (cannot proceed without these)
 
 These require accounts and credentials that only the project owner can create:
 
-- Supabase project, **created in `ap-south-1` (Mumbai)** — see §5 for why this is
-  irreversible
 - Google Cloud OAuth client (for Google Sign-In)
 - SMS/OTP provider account — **note: Indian transactional SMS requires DLT
   registration**, which is a real regulatory step, not a signup form

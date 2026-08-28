@@ -15,6 +15,43 @@
 
 ---
 
+## 2026-08-28 — Supabase project created; all 8 migrations deployed
+
+Project `zsfjwlmeeodsiwruvine`, region **`ap-south-1` (Mumbai)** as required,
+Postgres 17.6, free plan. Repo linked with the Supabase CLI and all 8 migrations
+pushed successfully.
+
+**Note on the project's history:** it was originally created under the name
+"ai cfo" and renamed to "looty" — same project ref throughout. Confirmed via
+`supabase projects list` that this is the only project in the org, so nothing was
+displaced. The database was empty before the push.
+
+**Verified against the live database**, not just pglite:
+- All 13 tables exist. Confirmed by probing each one and reading the error code:
+  `42501 permission denied` proves a table exists, whereas a missing table returns
+  `42P01`.
+- **Every table refuses the `anon` role.** This is the property that matters most —
+  the anon key ships inside the APK and can be extracted in a minute, so anything
+  readable by `anon` is effectively public. Nothing is.
+- The PostgREST OpenAPI root returns zero tables and zero functions to `anon`,
+  consistent with the above.
+
+**Not verified live:** authenticated-role behaviour. Testing that means creating a
+real user in the production project, which was not done unprompted. The 66 pglite
+tests cover the logic; what remains unproven is only that it behaves identically on
+real Postgres 17, which is likely but not demonstrated.
+
+**Two environment notes for future sessions:**
+- `supabase db dump` and `supabase db diff` need Docker, which is not installed on
+  this machine. `db push` does not, so deploying works but schema diffing does not.
+- `supabase db push` did **not** prompt for the database password — the CLI
+  authenticates with the stored access token. Linking with `--password ""` was
+  enough.
+
+`mobile/.env` now holds the real project URL and anon key, and is gitignored.
+
+---
+
 ## 2026-08-28 — Phase 2 schema: friendships, blocks, DMs, reports
 
 Four migrations and 31 new tests (66 total, all passing). Friendships with

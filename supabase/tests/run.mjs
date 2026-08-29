@@ -390,6 +390,98 @@ await check('reports cannot be read back by anyone', async () => {
   eq(r.c, 0, 'SELECT grants on reports');
 });
 
+// ---------------------------------------------------------------------------
+// College email verification — the ONLY route to full access now that the ID
+// card path is dormant. If these break, nobody can reach Tier 2.
+// ---------------------------------------------------------------------------
+
+async function issueCode(uid, code, { email = 'someone@iitb.ac.in', minutes = 10, collegeId = college.id } = {}) {
+  await db.query(`update email_verifications set consumed_at = now() where user_id = $1 and consumed_at is null`, [uid]);
+  const salt = 'salt_' + Math.random().toString(36).slice(2);
+  await db.query(
+    `insert into email_verifications (user_id, email, college_id, code_salt, code_hash, expires_at)
+     values ($1,$2,$3,$4, hash_email_code($5,$4), now() + ($6 || ' minutes')::interval)`,
+    [uid, email, collegeId, salt, code, String(minutes)]);
+}
+
+const { rows: [ed] } = await db.query(`insert into auth.users (email) values ('ed@gmail.com') returning id`);
+const edId = ed.id;
+await db.query(`update profiles set username='ed_looty', created_at=now()-interval '30 days' where id=$1`, [edId]);
+
+// confirm_college_email returns a status rather than raising — see the migration
+// for why. So these assert on the returned value, not on a thrown error.
+const confirm = (uid, code) =>
+  asUser(uid, async () =>
+    (await db.query(`select confirm_college_email($1) s`, [code])).rows[0].s);
+
+console.log('\nCollege email verification');
+await check('new Google signup starts at Tier 0', async () =>
+  eq((await one(`select trust_tier t from profiles where id=$1`, [edId])).t, 0));
+await check('wrong code is refused and the attempt actually persists', async () => {
+  await issueCode(edId, '123456');
+  eq(await confirm(edId, '999999'), 'invalid_code');
+  // The counter must survive the call. If this reads 0, the lockout below is dead.
+  eq((await one(`select attempts a from email_verifications where user_id=$1 order by created_at desc limit 1`, [edId])).a, 1);
+});
+await check('correct code promotes straight to Tier 2', async () => {
+  eq(await confirm(edId, '123456'), 'ok');
+  const p = await one(`select trust_tier t, college_id c from profiles where id=$1`, [edId]);
+  eq(p.t, 2, 'tier'); eq(p.c, college.id, 'college');
+});
+await check('college_email is recorded but never client-readable', async () => {
+  eq((await one(`select college_email e from profiles where id=$1`, [edId])).e, 'someone@iitb.ac.in');
+  const g = await one(`select count(*) c from information_schema.column_privileges
+    where table_name='profiles' and column_name='college_email' and grantee='authenticated'`);
+  eq(g.c, 0, 'college_email grants');
+});
+await check('a consumed code cannot be reused', async () =>
+  eq(await confirm(edId, '123456'), 'no_pending'));
+await check('expired code is refused', async () => {
+  await issueCode(edId, '222222', { minutes: -1 });
+  eq(await confirm(edId, '222222'), 'expired');
+});
+await check('locked out after 5 wrong attempts, even with the right code', async () => {
+  await issueCode(edId, '333333');
+  for (let i = 0; i < 5; i++) eq(await confirm(edId, '000000'), 'invalid_code');
+  eq(await confirm(edId, '333333'), 'too_many_attempts', 'right code after lockout');
+});
+await check('an address already claimed by someone else is refused', async () => {
+  const { rows: [f] } = await db.query(`insert into auth.users (email) values ('fi@gmail.com') returning id`);
+  await issueCode(f.id, '444444', { email: 'someone@iitb.ac.in' });
+  eq(await confirm(f.id, '444444'), 'email_already_claimed');
+});
+await check('a banned address cannot be reused on a new account', async () => {
+  const { rows: [g] } = await db.query(`insert into auth.users (email) values ('gu@gmail.com') returning id`);
+  await db.query(
+    `insert into banned_identities (hash, kind)
+     values (encode(sha256(convert_to(lower('banned@iitb.ac.in'),'UTF8')),'hex'),'college_email')`);
+  await issueCode(g.id, '555555', { email: 'banned@iitb.ac.in' });
+  eq(await confirm(g.id, '555555'), 'identity_banned');
+});
+await check('code hash and salt are never readable by the client', async () => {
+  for (const col of ['code_hash', 'code_salt']) {
+    const r = await one(`select count(*) c from information_schema.column_privileges
+      where table_name='email_verifications' and column_name=$1 and grantee='authenticated'`, [col]);
+    eq(r.c, 0, `${col} grants`);
+  }
+});
+await check('clients cannot issue codes to themselves', async () => {
+  const r = await one(`select count(*) c from information_schema.table_privileges
+    where table_name='email_verifications' and grantee='authenticated'
+      and privilege_type in ('INSERT','UPDATE')`);
+  eq(r.c, 0);
+});
+await check('banned_identities has no client grants', async () => {
+  const r = await one(`select count(*) c from information_schema.table_privileges
+    where table_name='banned_identities' and grantee in ('anon','authenticated')`);
+  eq(r.c, 0);
+});
+await check('Tier 2 user can do everything Tier 1 could', async () => {
+  await db.query(`select set_config('request.jwt.claim.sub',$1,false)`, [edId]);
+  eq((await one(`select current_tier() t`)).t, 2);
+  eq((await one(`select can_report() r`)).r, true);
+});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await db.close();
 process.exit(fail ? 1 : 0);

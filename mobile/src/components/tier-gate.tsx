@@ -16,9 +16,9 @@ import { useSession } from '@/lib/session';
 import { blockedReason, type Capability } from '@/lib/tiers';
 
 const COPY = {
-  postInGroups: 'Verify your student ID to join the conversation.',
-  directMessage: 'Verify your student ID to message other students.',
-  lootyMatch: 'Verify your student ID to start looting.',
+  postInGroups: 'Add your college email to join the conversation.',
+  directMessage: 'Add your college email to message other students.',
+  lootyMatch: 'Add your college email to start looting.',
 } as const;
 
 type Props = {

@@ -16,11 +16,23 @@
  */
 
 export const Tier = {
-  /** Google Sign-In + phone OTP only. Read groups. Nothing else. */
+  /**
+   * Signed in with Google, no college email confirmed. Read groups, request a
+   * college. Nothing else.
+   *
+   * Not necessarily temporary: a student whose college issues no email stays here
+   * permanently. Treat it as a real destination, not a waiting room.
+   */
   Unverified: 0,
-  /** ID card + live selfie passed automated checks. Full access. */
+  /**
+   * DORMANT — nothing currently reaches this tier.
+   *
+   * It was ID-card verification, which was removed from the product. The number is
+   * kept so capability minimums stay meaningful and so reinstating the ID path
+   * costs a decision rather than a migration.
+   */
   Verified: 1,
-  /** College email domain matched, or added later. Tier 1 + Verified badge. */
+  /** College email confirmed, by domain at sign-in or added later. Full access. */
   CollegeVerified: 2,
 } as const;
 

@@ -19,8 +19,7 @@ SplashScreen.preventAutoHideAsync();
 
 const STEP_ROUTE = {
   signIn: '/(auth)/sign-in',
-  phone: '/(auth)/phone',
-  verifyIdentity: '/(auth)/verify',
+  verifyCollege: '/(auth)/verify',
   profileSetup: '/(auth)/profile-setup',
 } as const;
 
@@ -47,9 +46,10 @@ function RootNavigator() {
       return;
     }
 
-    // Tier 0 users are allowed to browse groups while unverified rather than being
-    // trapped on the verification screen. Only push them there from the auth flow.
-    if (step === 'verifyIdentity' && group === '(app)') return;
+    // Tier 0 is not always a temporary state: a student whose college issues no
+    // email can never pass it. Trapping them on the verification screen would trap
+    // them permanently, so they are free to browse groups read-only.
+    if (step === 'verifyCollege' && group === '(app)') return;
 
     if (group !== '(auth)') router.replace(STEP_ROUTE[step]);
   }, [loading, step, isBanned, segments, router]);

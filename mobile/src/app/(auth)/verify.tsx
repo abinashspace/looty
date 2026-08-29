@@ -2,10 +2,10 @@ import { Placeholder } from '@/components/placeholder';
 
 export default function Verify() {
   return (
-    <Placeholder title="Student ID + selfie" phase="Phase 1">
-      Selfie must be camera-only with a random prompt, so a photo of a photo fails.
-      Face-matching the card against the selfie is the highest-value check here:
-      almost nobody forges a card, they use someone else's real one.
+    <Placeholder title="Add your college email" phase="Phase 1">
+      Enter your college address, get a 6-digit code, and you're in — no ID upload,
+      no fee, instant. If your college isn't recognised you can request it, and
+      meanwhile you can still read the groups.
     </Placeholder>
   );
 }

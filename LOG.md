@@ -15,6 +15,65 @@
 
 ---
 
+## 2026-08-28 — ID card verification removed; college email is the only route
+
+**Reversed this morning's decision to layer ID-card verification on top of open
+Gmail signup.** Verification is now: sign in with Google, confirm a college email,
+done. Migration `20260828120009` deployed to the live project; 79 tests passing.
+
+**What this removes:** the per-signup KYC vendor fee, the vendor selection entirely,
+biometric processing under DPDP, storing student ID photos, the 30-day image
+deletion sweep, and the manual review queue for cards the automated check could not
+read. It also removed **phone OTP**, and with it DLT registration — weeks of
+telecom paperwork needing business documents.
+
+The owner's todo list went from four items to two: Play Console, and the college
+domain list.
+
+**What this costs, stated honestly:** reach is now exactly the domain allowlist.
+A student whose college issues no email can never pass Tier 0. This is the same
+TAM cap that caused the ID path to be added in the first place — reintroduced
+deliberately. It is defensible while launching at colleges that do issue email
+(IITs, NITs, BITS, large private universities); it breaks if the launch depends on
+state and affiliated colleges, most of which issue nothing.
+
+**Decisions taken alongside it:**
+- Users with no college domain are **let in read-only** rather than refused. They
+  browse groups and can request their college. Those requests become the growth
+  roadmap — the colleges asked for most often are the ones worth chasing.
+  Consequence: **Tier 0 is now permanent for some users, not a waiting room**, so
+  the app must say "Looty isn't at your college yet" rather than parking them on a
+  verification screen they can never pass.
+- **Phone OTP dropped.** Its only job was anchoring bans, and a college address does
+  that better — one per student, hard to get another, no regulator involved.
+  `banned_phone_hashes` was replaced by `banned_identities (hash, kind)`.
+- **ID-card schema left dormant, not dropped.** `verifications.ocr_*`,
+  `face_match_score`, image paths, the `id_card` method, `profiles.phone_hash` and
+  `full_name` all remain unused. Reinstating the ID path should cost a decision, not
+  a rebuild, if the domain list turns out too small.
+
+**Serious bug caught by a test — worth reading if you touch this code.**
+`confirm_college_email` originally incremented the failed-attempt counter and then
+called `raise exception 'invalid_code'`. In PL/pgSQL, `raise` aborts the surrounding
+subtransaction, which **rolled back the increment**. So `attempts` stayed at zero
+forever and the five-try lockout never fired — leaving a six-digit code
+brute-forceable in seconds.
+
+Fixed by returning a status string (`ok` / `invalid_code` / `expired` /
+`too_many_attempts` / …) instead of raising, so the counter commits. Callers must
+check the return value. There is a test asserting the counter actually persists, and
+a warning in CONTEXT.md §4.6 against "tidying" it back into exceptions.
+
+**Code handling:** codes are stored as `sha256(code || per-row salt)` using core
+Postgres `sha256`, deliberately not pgcrypto, so the pglite test harness can run it
+without extensions. Codes are issued only by an Edge Function under `service_role`;
+confirming is client-callable since it only succeeds with the right code.
+
+**New dependency, smaller than what it replaced:** an email sending provider
+(Resend, SES) for the codes. No registration regime, unlike SMS.
+
+---
+
 ## 2026-08-28 — Supabase project created; all 8 migrations deployed
 
 Project `zsfjwlmeeodsiwruvine`, region **`ap-south-1` (Mumbai)** as required,

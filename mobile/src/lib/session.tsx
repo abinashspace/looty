@@ -45,8 +45,7 @@ const PROFILE_COLUMNS =
 /** Where a user is in signup. Drives which screen the root layout shows. */
 export type SignupStep =
   | 'signIn'
-  | 'phone'
-  | 'verifyIdentity'
+  | 'verifyCollege'
   | 'profileSetup'
   | 'done';
 
@@ -64,18 +63,20 @@ type SessionState = {
 };
 
 /**
- * Signup order (CONTEXT.md §4.3): sign in → phone OTP → identity → profile.
+ * Signup order (CONTEXT.md §4.3): sign in → college email → profile.
  *
- * Identity is skipped entirely for anyone who arrived on a recognised college
- * domain — they are already Tier 2 and never see the ID card step. Everyone else
- * stays at Tier 0 until their card and selfie pass, and Tier 0 is a usable state,
- * not a dead end: they can read groups while they wait.
+ * Anyone who signs in with a recognised college domain is already Tier 2 and skips
+ * the middle step entirely. Everyone else is offered "add your college email".
+ *
+ * Note that `verifyCollege` is NOT a wall. A student whose college issues no email
+ * can never pass Tier 0, so trapping them on a verification screen would trap them
+ * forever. They browse groups read-only and can request their college instead —
+ * the root layout lets them through.
  */
 function resolveStep(session: Session | null, profile: Profile | null): SignupStep {
   if (!session) return 'signIn';
-  if (!profile?.phone_verified_at) return 'phone';
-  if (profile.trust_tier === Tier.Unverified) return 'verifyIdentity';
-  if (!profile.onboarding_complete) return 'profileSetup';
+  if ((profile?.trust_tier ?? Tier.Unverified) < Tier.CollegeVerified) return 'verifyCollege';
+  if (!profile?.onboarding_complete) return 'profileSetup';
   return 'done';
 }
 

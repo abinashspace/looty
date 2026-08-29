@@ -65,7 +65,7 @@ document, the log, the Phase 1 database schema, and its tests.
 ### What exists right now
 
 ```
-supabase/migrations/   17 migrations. Phase 1: colleges + domain allowlist,
+supabase/migrations/   18 migrations. Phase 1: colleges + domain allowlist,
                        profiles, verifications + bans + access gate, RLS +
                        column grants. Phase 2: blocks + friendships, threads +
                        messages, reports, Phase 2 RLS. Then: college email
@@ -75,22 +75,32 @@ supabase/migrations/   17 migrations. Phase 1: colleges + domain allowlist,
                        quota. Phase 5: ban engine, brigade unwinding,
                        appeals. Then: function EXECUTE lockdown (x2),
                        profile-enumeration fix + group_thread(), avatars
-                       storage bucket, derived onboarding_complete
+                       storage bucket, derived onboarding_complete,
+                       my_threads() + realtime publication
 supabase/functions/    issue-college-code (deployed)
-supabase/tests/run.mjs 150 behaviour tests, run with `npm run test:db`
+supabase/tests/run.mjs 155 behaviour tests, run with `npm run test:db`
 supabase/seed.sql      sample colleges; domain list deliberately EMPTY
 mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/lib/tiers.ts     client mirror of the server tier gate — NOT security
   src/lib/session.tsx  auth session + profile + signup step resolution
   src/lib/supabase.ts  client; degrades to a setup screen when .env is absent
   src/components/ui.tsx  Screen / Field / Button / Notice — the whole kit
+  src/components/chat.tsx  MessageList + Composer, shared by groups and DMs
   src/app/(auth)/      sign-in, verify, college, profile-setup — all REAL
-  src/app/(app)/       profile REAL; groups, match, looted, chats still stubs
+  src/app/(app)/       groups/, chats/, profile — REAL
+                       match, looted — still stubs
 ```
 
-The auth flow is built: sign in or create an account, confirm a college email by
-6-digit code, set up a profile with a photo, and see your own profile with its tier
-badge. **Groups, Match, Looted and Chats are still placeholders.**
+Built and working: sign in, college-email verification, profile setup with photo,
+your own profile, the three group rooms with live chat, and the DM inbox with 1:1
+chat. Report and Block sit in the chat header.
+
+**Still placeholders: Looty Match and the Looted-you list.**
+
+**Messages are text-only in the client so far.** The schema supports images in DMs
+and Connected chats (`messages.image_url`), and the spec calls for blur-by-default
+in Connected chats — none of that is built yet. Group messages are text-only by
+design and always will be.
 
 **Development auth is email/password.** Google Sign-In is the intended production
 entry point and drops in beside it — nothing downstream looks at how you
@@ -102,7 +112,7 @@ Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
 
 ### Verified so far
 
-`npm run test:db` passes 150/150. `npx tsc --noEmit` is clean, and
+`npm run test:db` passes 155/155. `npx tsc --noEmit` is clean, and
 `npx expo export --platform android` produces a bundle, which proves imports
 resolve. Nothing has been run on a device or emulator.
 
@@ -153,7 +163,7 @@ banned addresses.
 ### Live infrastructure
 
 **Supabase project `zsfjwlmeeodsiwruvine`**, region `ap-south-1` (Mumbai),
-Postgres 17.6, on the free plan. All 17 migrations are deployed, plus the `issue-college-code` Edge Function. The repo is linked
+Postgres 17.6, on the free plan. All 18 migrations are deployed, plus the `issue-college-code` Edge Function. The repo is linked
 via the Supabase CLI, so `npx supabase db push` applies new migrations directly —
 it authenticates with the stored access token and does not prompt for the database
 password.

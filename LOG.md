@@ -15,6 +15,51 @@
 
 ---
 
+## 2026-08-29 — Chat screens: group rooms and 1:1 DMs, with realtime
+
+Groups list, group room, DM inbox and 1:1 chat, all working against the live
+project. 5 new tests (155 total). Looty Match and the Looted-you list remain
+placeholders.
+
+**Routing restructured.** `groups.tsx` and `chats.tsx` became `groups/` and
+`chats/` directories, each with its own Stack, so a tab can push a room or a
+conversation without leaving the tab.
+
+**`my_threads()`** (migration 18) builds the inbox server-side. `threads` stores a
+pair as user_a/user_b, so doing it client-side means "work out which column I am,
+fetch the other person, fetch their profile, fetch the last message" — three round
+trips per row. It also drops threads for blocked pairs while leaving the rows
+intact, since deleting them would destroy evidence a report may depend on. A test
+pins that the messages survive a block.
+
+**Realtime** enabled on `messages` and `group_messages`. Postgres changes are
+broadcast through RLS, so a subscriber only receives rows they could already read —
+but clients still filter by thread or group in the subscription itself. Without
+that, every message in every room would be pushed to every device, since
+`group_messages` is readable by everyone.
+
+**Design decisions:**
+
+- **Group rooms show the category, not the room number.** "Study", with
+  "Room 2 · 847 members" as a quiet subtitle — following the decision recorded
+  earlier. Non-members see the first room as a preview rather than an empty screen.
+- **Report and Block sit side by side in the chat header**, not behind a menu.
+  They are what someone reaches for in the same moment, and burying either costs
+  exactly the wrong person exactly the wrong amount of time.
+- **The composer clears optimistically and restores the text if the send fails.**
+  Losing what you typed to a network blip is a small thing that feels like a big one.
+- **Blocked senders collapse to a line, not a gap**, in group threads — removing
+  their messages entirely would orphan the replies to them.
+- The composer's disabled state explains *why* it is disabled — unverified, banned,
+  or not a member are three different problems with three different fixes.
+
+**Known gap, stated plainly:** messages are **text-only in the client**. The schema
+supports images in DMs and Connected chats, and the spec calls for blur-by-default
+in Connected chats, but none of that is built. It needs a second storage bucket and
+its policies. Group messages are text-only by design and always will be.
+
+---
+
 ## 2026-08-29 — The auth flow is real: sign-in, college verification, profile setup
 
 First actual screens. Sign in / create account, confirm a college email by 6-digit

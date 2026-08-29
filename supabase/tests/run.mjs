@@ -46,6 +46,10 @@ await db.exec(`
   alter table storage.objects enable row level security;
   create or replace function storage.foldername(p_name text) returns text[]
     language sql immutable as $$ select string_to_array(p_name, '/') $$;
+
+  -- Supabase ships this publication; pglite does not. Created empty so the
+  -- realtime migration runs as written.
+  create publication supabase_realtime;
 `);
 
 // pglite attaches the whole bundled module to thrown errors, so an unhandled one
@@ -939,6 +943,44 @@ await check('moderation internals are not callable by clients', async () => {
                     'resolve_appeal(uuid,appeal_status)', 'report_ban_threshold()']) {
     eq((await one(`select has_function_privilege('authenticated',$1,'execute') x`, [fn])).x, false, fn);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Chat inbox
+// ---------------------------------------------------------------------------
+
+console.log('\nChat inbox (my_threads)');
+const ivy = await mkUser('ivy'), jon = await mkUser('jon'), kip = await mkUser('kip');
+await check('an accepted friendship yields a DM thread in the inbox', async () => {
+  await asUser(ivy, () => db.query(`insert into friendships (requester_id, addressee_id) values ($1,$2)`, [ivy, jon]));
+  await asUser(jon, () => db.query(`update friendships set status='accepted' where addressee_id=$1 and requester_id=$2`, [jon, ivy]));
+  const tid = await asUser(ivy, async () => (await db.query(`select open_dm_thread($1) id`, [jon])).rows[0].id);
+  await asUser(ivy, () => db.query(
+    `insert into messages (thread_id, sender_id, body) values ($1,$2,'first message')`, [tid, ivy]));
+
+  const rows = await asUser(ivy, async () => (await db.query(`select * from my_threads()`)).rows);
+  eq(rows.length, 1, 'thread count');
+  eq(rows[0].other_id, jon, 'other participant');
+  eq(rows[0].last_body, 'first message', 'last message');
+  eq(rows[0].type, 'dm');
+});
+await check('the other participant sees the same thread from their side', async () => {
+  const rows = await asUser(jon, async () => (await db.query(`select * from my_threads()`)).rows);
+  eq(rows.length, 1);
+  eq(rows[0].other_id, ivy, 'other participant should be ivy from jon’s side');
+});
+await check('an uninvolved user sees nothing', async () => {
+  const rows = await asUser(kip, async () => (await db.query(`select * from my_threads()`)).rows);
+  eq(rows.length, 0);
+});
+await check('blocking removes the thread from the inbox for both', async () => {
+  await asUser(jon, () => db.query(`insert into blocks (blocker_id, blocked_id) values ($1,$2)`, [jon, ivy]));
+  eq((await asUser(ivy, async () => (await db.query(`select * from my_threads()`)).rows)).length, 0, 'blocked side');
+  eq((await asUser(jon, async () => (await db.query(`select * from my_threads()`)).rows)).length, 0, 'blocker side');
+});
+await check('the messages themselves survive a block, for reports', async () => {
+  const n = Number((await one(`select count(*) c from messages where body='first message'`)).c);
+  eq(n, 1, 'messages should not be deleted by a block');
 });
 
 // ---------------------------------------------------------------------------

@@ -56,7 +56,7 @@ document, the log, the Phase 1 database schema, and its tests.
 | 0 | College domain list | **Not started — needs the owner**, see §7 |
 | 1 | Auth, verification, trust tiers, profile | **Schema + tests done.** No app, no Edge Functions |
 | 2 | Friends, DMs, block/report primitives | **Schema + tests done.** No UI |
-| 3 | Groups | Not started |
+| 3 | Groups | **Schema + tests done.** No UI |
 | 4 | Looty Match | Not started |
 | 5 | Automatic moderation engine | Not started |
 | 6 | Ads + subscription | Not started |
@@ -69,8 +69,9 @@ supabase/migrations/   9 migrations. Phase 1: colleges + domain allowlist,
                        profiles, verifications + bans + access gate, RLS +
                        column grants. Phase 2: blocks + friendships, threads +
                        messages, reports, Phase 2 RLS. Then: college email
-                       verification (the only route to Tier 2)
-supabase/tests/run.mjs 79 behaviour tests, run with `npm run test:db`
+                       verification (the only route to Tier 2). Phase 3:
+                       groups, membership, group messages, word filter
+supabase/tests/run.mjs 101 behaviour tests, run with `npm run test:db`
 supabase/seed.sql      sample colleges; domain list deliberately EMPTY
 mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/lib/tiers.ts     client mirror of the server tier gate — NOT security
@@ -89,7 +90,7 @@ Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
 
 ### Verified so far
 
-`npm run test:db` passes 79/79. `npx tsc --noEmit` is clean, and
+`npm run test:db` passes 101/101. `npx tsc --noEmit` is clean, and
 `npx expo export --platform android` produces a bundle, which proves imports
 resolve. Nothing has been run on a device or emulator.
 
@@ -98,7 +99,7 @@ RLS genuinely applies to them. Phase 1 tests run as superuser and therefore chec
 grant *metadata* rather than live enforcement — a weaker guarantee, worth knowing
 when reading them.
 
-**Against the live database:** all 13 tables exist, and every one of them refuses
+**Against the live database:** all 17 tables exist, and every one of them refuses
 the `anon` role outright (`42501 permission denied`). That matters more than it
 looks — the anon key ships inside the APK and anyone can extract it in a minute, so
 "anon can read nothing" is the property that keeps the whole database private.
@@ -115,7 +116,7 @@ below. Everything else in Phase 1 is done.
 ### Live infrastructure
 
 **Supabase project `zsfjwlmeeodsiwruvine`**, region `ap-south-1` (Mumbai),
-Postgres 17.6, on the free plan. All 9 migrations are deployed. The repo is linked
+Postgres 17.6, on the free plan. All 10 migrations are deployed. The repo is linked
 via the Supabase CLI, so `npx supabase db push` applies new migrations directly —
 it authenticates with the stored access token and does not prompt for the database
 password.
@@ -390,6 +391,10 @@ reports             id, reporter_id, target_id, context, reason
                     -- unique (reporter_id, target_id)
 bans                id, user_id, type, starts_at, ends_at
 appeals             id, ban_id, user_id, text, status
+groups              id, category, room_number, member_count, capacity, name
+group_members       group_id, user_id, category  -- unique(user_id, category)
+group_messages      id, group_id, sender_id, body  -- NO image column, by design
+blocked_terms       term                          -- word filter, ships empty
 banned_identities   hash, kind  -- ban anchor; survives account deletion
 email_verifications user_id, email, college_id, code_salt, code_hash,
                     expires_at, attempts, consumed_at

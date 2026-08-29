@@ -15,6 +15,64 @@
 
 ---
 
+## 2026-08-28 — Phase 3: groups
+
+Migration `20260828120010` deployed. Study / Sports / Friends, global, open join,
+1024 per room with automatic overflow into Study 2, Study 3 and so on. 22 new tests
+(101 total, all passing).
+
+**Design decisions:**
+
+- **`group_messages` has no `image_url` column at all.** "Text only" is enforced by
+  the column not existing, rather than by a validation rule someone can later
+  relax. Groups are strangers at scale; images there would be the largest
+  moderation burden in the app. A test asserts no media column ever appears.
+- **Room assignment is automatic and users never pick a number.** "Study 3" is an
+  implementation detail of capacity, not a place anyone chose to be.
+- **`join_group()` loops with a row lock.** Two people taking the last seat at once:
+  the second blocks, re-reads the now-full room, and moves to the next. A
+  `unique_violation` catch handles two people creating the same new room number
+  simultaneously.
+- **`group_members.category` is denormalised** so "one room per category per user"
+  is a plain unique constraint. A composite foreign key against
+  `groups(id, category)` guarantees it still matches the group it points at.
+- **`member_count` is maintained by trigger**, not by the join function, so leaving
+  and cascade deletes keep it honest too.
+- **Rate limit is per user across all rooms**, not per room — otherwise a spammer
+  just spreads the same flood across Study, Sports and Friends. 10 messages/minute.
+- **The word filter matches on word boundaries** (`\m … \M`), not substrings. A
+  `LIKE '%term%'` filter rejects "Scunthorpe", "assignment", "classic" — the classic
+  false-positive trap that makes a filter look broken to real users. There is a test
+  using "cat" vs "concatenate" that pins this.
+- **`blocked_terms` ships empty.** A word list is a policy decision and a bad one is
+  worse than none.
+
+**Bug caught, and the two false passes it was hiding.** The word filter was first
+called from inside the RLS `with check`. RLS policies execute as the *calling user*,
+so this needed `EXECUTE` on `trips_word_filter` granted to `authenticated` — which
+would have handed clients an oracle for probing the word list one guess at a time.
+Without that grant, every insert failed with "permission denied for function".
+
+Worse, two word-filter tests were *passing* on this — they asserted a message was
+rejected, and it was, but for the wrong reason. Only the positive test ("word
+boundaries let 'concatenate' through") exposed it.
+
+Moved into a `security definer` BEFORE INSERT trigger, which runs as the owner. The
+list stays private, and the failure is now a clear `message_blocked` instead of a
+generic RLS violation the client cannot explain to the user.
+
+**Also:** `groups.name` was going to be a generated column
+(`initcap(category) || ' ' || room_number`) but Postgres rejects it — casting an
+enum to text is not immutable enough. It is a trigger-maintained column instead,
+which keeps the same guarantee that a room's label cannot drift from what it is.
+
+**Test harness fix:** pglite attaches its entire bundled module to thrown errors, so
+a failing migration buried the real message under megabytes of minified JS.
+Migrations now run inside a try/catch that prints the message, detail, hint and
+constraint, then exits.
+
+---
+
 ## 2026-08-28 — ID card verification removed; college email is the only route
 
 **Reversed this morning's decision to layer ID-card verification on top of open

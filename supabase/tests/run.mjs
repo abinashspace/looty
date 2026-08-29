@@ -33,9 +33,20 @@ await db.exec(`
   create role anon; create role authenticated; create role service_role;
 `);
 
+// pglite attaches the whole bundled module to thrown errors, so an unhandled one
+// buries the actual message under megabytes of minified JS. Report and stop.
 for (const f of readdirSync(MIG).filter(f => f.endsWith('.sql')).sort()) {
-  await db.exec(readFileSync(path.join(MIG, f), 'utf8')
-    .replace(/create extension if not exists pgcrypto;/gi, ''));
+  try {
+    await db.exec(readFileSync(path.join(MIG, f), 'utf8')
+      .replace(/create extension if not exists pgcrypto;/gi, ''));
+  } catch (e) {
+    console.error(`\nMIGRATION FAILED  ${f}`);
+    console.error(`  ${e.message}`);
+    for (const k of ['detail', 'hint', 'constraint', 'column', 'routine']) {
+      if (e[k]) console.error(`  ${k}: ${e[k]}`);
+    }
+    process.exit(1);
+  }
 }
 
 let pass = 0, fail = 0;
@@ -480,6 +491,132 @@ await check('Tier 2 user can do everything Tier 1 could', async () => {
   await db.query(`select set_config('request.jwt.claim.sub',$1,false)`, [edId]);
   eq((await one(`select current_tier() t`)).t, 2);
   eq((await one(`select can_report() r`)).r, true);
+});
+
+// ---------------------------------------------------------------------------
+// Phase 3 — groups
+// ---------------------------------------------------------------------------
+
+const g = {};
+for (const name of ['gina', 'greg', 'gus']) {
+  const { rows: [u] } = await db.query(`insert into auth.users (email) values ($1) returning id`, [`${name}@iitb.ac.in`]);
+  g[name] = u.id;
+  await db.query(
+    `update profiles set username=$2, trust_tier=2, college_id=$3, created_at=now()-interval '30 days' where id=$1`,
+    [u.id, name, college.id]);
+}
+const joinAs = (uid, cat = 'study') =>
+  asUser(uid, async () => (await db.query(`select join_group($1) id`, [cat])).rows[0].id);
+
+console.log('\nGroups — joining and capacity');
+await check('first joiner creates Study 1', async () => {
+  const id = await joinAs(g.gina);
+  const r = await one(`select name, room_number rn, member_count mc from groups where id=$1`, [id]);
+  eq(r.name, 'Study 1'); eq(r.rn, 1); eq(r.mc, 1, 'member_count');
+});
+await check('joining again returns the same room', async () => {
+  const a = await joinAs(g.gina);
+  const b = await joinAs(g.gina);
+  eq(a, b);
+  eq((await one(`select count(*) c from group_members where user_id=$1 and category='study'`, [g.gina])).c, 1);
+});
+await check('room at capacity spills into Study 2', async () => {
+  await db.query(`update groups set capacity=1 where name='Study 1'`);
+  const id = await joinAs(g.greg);
+  eq((await one(`select name from groups where id=$1`, [id])).name, 'Study 2');
+});
+await check('member_count tracks joins and leaves', async () => {
+  const before = (await one(`select member_count mc from groups where name='Study 2'`)).mc;
+  await asUser(g.greg, () => db.query(`select leave_group('study')`));
+  eq((await one(`select member_count mc from groups where name='Study 2'`)).mc, before - 1);
+});
+await check('a user cannot be in two rooms of one category', async () => {
+  const id2 = (await one(`select id from groups where name='Study 2'`)).id;
+  await denied(g.gina, `insert into group_members (group_id, user_id, category) values ($1,$2,'study')`, [id2, g.gina]);
+});
+await check('categories are independent', async () => {
+  const s = await joinAs(g.gina, 'sports');
+  eq((await one(`select name from groups where id=$1`, [s])).name, 'Sports 1');
+});
+await check('Tier 0 cannot join', async () => {
+  await db.query(`update profiles set trust_tier=0 where id=$1`, [g.gus]);
+  await denied(g.gus, `select join_group('friends')`);
+});
+await check('banned user cannot join', async () => {
+  await db.query(`update profiles set trust_tier=2 where id=$1`, [g.gus]);
+  await db.query(`insert into bans (user_id,type,ends_at) values ($1,'temporary',now()+interval '5 days')`, [g.gus]);
+  await denied(g.gus, `select join_group('friends')`);
+  await db.query(`delete from bans where user_id=$1`, [g.gus]);
+});
+await check('membership cannot be forged directly', async () => {
+  const id = (await one(`select id from groups where name='Study 2'`)).id;
+  await denied(g.gus, `insert into group_members (group_id, user_id, category) values ($1,$2,'study')`, [id, g.gus]);
+});
+
+console.log('\nGroups — posting');
+const studyRoom = await joinAs(g.gus);
+await check('member can post', () =>
+  asUser(g.gus, () => db.query(
+    `insert into group_messages (group_id, sender_id, body) values ($1,$2,'hello room')`, [studyRoom, g.gus])));
+await check('non-member cannot post', async () => {
+  const other = (await one(`select id from groups where name='Study 1'`)).id;
+  await denied(g.gus, `insert into group_messages (group_id, sender_id, body) values ($1,$2,'wrong room')`, [other, g.gus]);
+});
+await check('Tier 0 can READ group messages', async () => {
+  await db.query(`update profiles set trust_tier=0 where id=$1`, [g.gus]);
+  await asUser(g.gus, async () => {
+    const r = await db.query(`select count(*) c from group_messages`);
+    if (Number(r.rows[0].c) < 1) throw new Error('Tier 0 saw no messages');
+  });
+  await db.query(`update profiles set trust_tier=2 where id=$1`, [g.gus]);
+});
+await check('Tier 0 cannot POST', async () => {
+  await db.query(`update profiles set trust_tier=0 where id=$1`, [g.gus]);
+  await denied(g.gus, `insert into group_messages (group_id, sender_id, body) values ($1,$2,'sneaking in')`, [studyRoom, g.gus]);
+  await db.query(`update profiles set trust_tier=2 where id=$1`, [g.gus]);
+});
+await check('empty message refused', () =>
+  denied(g.gus, `insert into group_messages (group_id, sender_id, body) values ($1,$2,'   ')`, [studyRoom, g.gus]));
+await check('group messages are text only — no image column exists', async () => {
+  const r = await one(`select count(*) c from information_schema.columns
+    where table_name='group_messages' and column_name in ('image_url','video_url','media_url')`);
+  eq(r.c, 0, 'media columns');
+});
+await check('group messages are not editable by anyone', async () => {
+  const r = await one(`select count(*) c from information_schema.column_privileges
+    where table_name='group_messages' and grantee='authenticated' and privilege_type='UPDATE'`);
+  eq(r.c, 0);
+});
+await check('rate limit stops a flood at 10/minute', async () => {
+  await db.query(`delete from group_messages where sender_id=$1`, [g.gus]);
+  for (let i = 0; i < 10; i++) {
+    await asUser(g.gus, () => db.query(
+      `insert into group_messages (group_id, sender_id, body) values ($1,$2,$3)`, [studyRoom, g.gus, 'msg ' + i]));
+  }
+  await denied(g.gus, `insert into group_messages (group_id, sender_id, body) values ($1,$2,'eleventh')`, [studyRoom, g.gus]);
+});
+await check('rate limit spans rooms, not just one', async () => {
+  const sports = await joinAs(g.gus, 'sports');
+  await denied(g.gus, `insert into group_messages (group_id, sender_id, body) values ($1,$2,'spillover')`, [sports, g.gus]);
+  await db.query(`delete from group_messages where sender_id=$1`, [g.gus]);
+});
+
+console.log('\nGroups — word filter');
+await check('blocked term is rejected', async () => {
+  await db.query(`insert into blocked_terms (term) values ('cat')`);
+  await denied(g.gus, `insert into group_messages (group_id, sender_id, body) values ($1,$2,'look at that cat')`, [studyRoom, g.gus]);
+});
+await check('matching is on word boundaries, not substrings', () =>
+  // "concatenate" contains "cat". A LIKE '%cat%' filter would wrongly reject this
+  // — the Scunthorpe problem. Word boundaries must let it through.
+  asUser(g.gus, () => db.query(
+    `insert into group_messages (group_id, sender_id, body) values ($1,$2,'concatenate the strings')`, [studyRoom, g.gus])));
+await check('filter is case-insensitive', () =>
+  denied(g.gus, `insert into group_messages (group_id, sender_id, body) values ($1,$2,'CAT!')`, [studyRoom, g.gus]));
+await check('word list is never readable by clients', async () => {
+  const r = await one(`select count(*) c from information_schema.table_privileges
+    where table_name='blocked_terms' and grantee in ('anon','authenticated')`);
+  eq(r.c, 0);
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -57,7 +57,7 @@ document, the log, the Phase 1 database schema, and its tests.
 | 1 | Auth, verification, trust tiers, profile | **Schema + tests done.** No app, no Edge Functions |
 | 2 | Friends, DMs, block/report primitives | **Schema + tests done.** No UI |
 | 3 | Groups | **Schema + tests done.** No UI |
-| 4 | Looty Match | Not started |
+| 4 | Looty Match | **Schema + tests done.** No UI |
 | 5 | Automatic moderation engine | Not started |
 | 6 | Ads + subscription | Not started |
 | 7 | Play Store requirements | Not started |
@@ -65,13 +65,15 @@ document, the log, the Phase 1 database schema, and its tests.
 ### What exists right now
 
 ```
-supabase/migrations/   9 migrations. Phase 1: colleges + domain allowlist,
+supabase/migrations/   12 migrations. Phase 1: colleges + domain allowlist,
                        profiles, verifications + bans + access gate, RLS +
                        column grants. Phase 2: blocks + friendships, threads +
                        messages, reports, Phase 2 RLS. Then: college email
                        verification (the only route to Tier 2). Phase 3:
-                       groups, membership, group messages, word filter
-supabase/tests/run.mjs 101 behaviour tests, run with `npm run test:db`
+                       groups, membership, group messages, word filter.
+                       Phase 4: loots, connections, subscriptions, feed +
+                       quota. Then: function EXECUTE lockdown
+supabase/tests/run.mjs 128 behaviour tests, run with `npm run test:db`
 supabase/seed.sql      sample colleges; domain list deliberately EMPTY
 mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/lib/tiers.ts     client mirror of the server tier gate — NOT security
@@ -90,7 +92,7 @@ Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
 
 ### Verified so far
 
-`npm run test:db` passes 101/101. `npx tsc --noEmit` is clean, and
+`npm run test:db` passes 128/128. `npx tsc --noEmit` is clean, and
 `npx expo export --platform android` produces a bundle, which proves imports
 resolve. Nothing has been run on a device or emulator.
 
@@ -99,10 +101,19 @@ RLS genuinely applies to them. Phase 1 tests run as superuser and therefore chec
 grant *metadata* rather than live enforcement — a weaker guarantee, worth knowing
 when reading them.
 
-**Against the live database:** all 17 tables exist, and every one of them refuses
+**Against the live database:** all 20 tables exist, and every one of them refuses
 the `anon` role outright (`42501 permission denied`). That matters more than it
 looks — the anon key ships inside the APK and anyone can extract it in a minute, so
 "anon can read nothing" is the property that keeps the whole database private.
+
+**Functions are locked too, and this needed fixing.** Postgres grants EXECUTE on
+every new function to PUBLIC by default — the opposite of tables, which start
+closed. So `anon` could call `looted_you()` and `match_feed()` on the live project.
+Nothing leaked, because each function checks `auth.uid()` and returned empty. But
+that made safety depend on every function remembering to check, rather than on the
+permission system. Migration 12 revokes the PUBLIC default, re-grants only what the
+client actually calls, and sets `alter default privileges` so new functions start
+closed. Verified live: anon now gets `42501 permission denied`.
 
 Not yet verified live: authenticated-role behaviour. That would mean creating a real
 user in the production project, which has not been done.
@@ -116,7 +127,7 @@ below. Everything else in Phase 1 is done.
 ### Live infrastructure
 
 **Supabase project `zsfjwlmeeodsiwruvine`**, region `ap-south-1` (Mumbai),
-Postgres 17.6, on the free plan. All 10 migrations are deployed. The repo is linked
+Postgres 17.6, on the free plan. All 12 migrations are deployed. The repo is linked
 via the Supabase CLI, so `npx supabase db push` applies new migrations directly —
 it authenticates with the stored access token and does not prompt for the database
 password.
@@ -409,6 +420,9 @@ groups              id, category, room_number, member_count, capacity, name
 group_members       group_id, user_id, category  -- unique(user_id, category)
 group_messages      id, group_id, sender_id, body  -- NO image column, by design
 blocked_terms       term                          -- word filter, ships empty
+loots               actor_id, target_id, action(loot|pass)  -- unique per pair
+connections         user_a, user_b, status  -- from mutual loots only
+subscriptions       user_id, status, current_period_end
 banned_identities   hash, kind  -- ban anchor; survives account deletion
 email_verifications user_id, email, college_id, code_salt, code_hash,
                     expires_at, attempts, consumed_at
@@ -451,12 +465,27 @@ badge (§3.1) makes this visible rather than preventing it, which is the intende
 behaviour — but it does mean "verified" means "has a college address", not "is
 currently enrolled".
 
-**Screenshot detection below Android 14 — undecided, needed before Phase 4.**
-Android 14 (API 34) provides a real `ScreenCaptureCallback`. Below that there is no
-detection API at all — only `FLAG_SECURE`, which *blocks* screenshots rather than
-notifying. A large share of Indian devices are pre-14. Proposed handling:
-`FLAG_SECURE` on <14 (screenshots blocked), `ScreenCaptureCallback` on 14+ (allowed
-but the other person is notified). Behaviour would differ by device.
+**Screenshot handling — DECIDED, split by Android version.**
+Android 14+ (API 34) uses `ScreenCaptureCallback`: the screenshot is allowed and
+the other person is notified. Below 14 there is no detection API, so `FLAG_SECURE`
+is set instead and screenshots are blocked outright.
+
+Three implementation traps to respect when building this:
+
+- **`FLAG_SECURE` is per-Activity, not per-screen.** An Expo app has one Activity,
+  so setting it naively blocks screenshots *app-wide* — profiles, group
+  discussions, everything. It must be set on entering a Connected chat and cleared
+  on leaving.
+- It also blanks the app in the recent-apps switcher and blocks screen recording
+  and casting while active. That is desirable inside the chat; it is not desirable
+  everywhere else, which is the same reason it has to be toggled.
+- **The guarantee is stronger on older phones than newer ones** — blocked on <14,
+  merely notified on 14+. That inversion is unavoidable and should not be papered
+  over in the UI copy: do not promise "screenshots are blocked" to anyone.
+
+Note this does not weaken reporting. Reports carry the surrounding messages
+server-side (`reports.context_type` / `context_id`), so a user does not need a
+screenshot to evidence harassment.
 
 **Phase 0 — college domain list. Now the single most important open task.** For
 each college confirm: do students actually get mailboxes, the exact domain and

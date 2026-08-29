@@ -619,6 +619,201 @@ await check('word list is never readable by clients', async () => {
   eq(r.c, 0);
 });
 
+// ---------------------------------------------------------------------------
+// Phase 4 — Looty Match
+// ---------------------------------------------------------------------------
+
+const otherCollege = (await db.query(
+  `insert into colleges (name, city, state) values ('NIT Trichy','Tiruchirappalli','Tamil Nadu') returning id`)).rows[0].id;
+
+async function mkUser(name, { tier = 2, collegeId = college.id, gender = 'woman' } = {}) {
+  const { rows: [u] } = await db.query(`insert into auth.users (email) values ($1) returning id`, [`${name}@iitb.ac.in`]);
+  await db.query(
+    `update profiles set username=$2, trust_tier=$3, college_id=$4, gender=$5, dp_url='x',
+       onboarding_complete=true, created_at=now()-interval '30 days' where id=$1`,
+    [u.id, name + '_m', tier, collegeId, gender]);
+  return u.id;
+}
+const mia = await mkUser('mia');
+const noor = await mkUser('noor');
+const raj = await mkUser('raj', { gender: 'man' });
+const far = await mkUser('far', { collegeId: otherCollege });
+
+const loot = (actor, target, action = 'loot') =>
+  asUser(actor, () => db.query(
+    `insert into loots (actor_id, target_id, action) values ($1,$2,$3)`, [actor, target, action]));
+const feedFor = (uid) =>
+  asUser(uid, async () => (await db.query(`select id from match_feed(50)`)).rows.map(r => r.id));
+
+console.log('\nLooty Match — looting');
+await check('a loot is recorded', () => loot(mia, noor));
+await check('deciding twice on the same person is refused', () =>
+  denied(mia, `insert into loots (actor_id, target_id, action) values ($1,$2,'pass')`, [mia, noor]));
+await check('self-loot refused', () =>
+  denied(mia, `insert into loots (actor_id, target_id, action) values ($1,$1,'loot')`, [mia]));
+await check('cannot loot on someone else’s behalf', () =>
+  denied(raj, `insert into loots (actor_id, target_id, action) values ($1,$2,'loot')`, [mia, raj]));
+await check('Tier 0 cannot loot', async () => {
+  await db.query(`update profiles set trust_tier=0 where id=$1`, [raj]);
+  await denied(raj, `insert into loots (actor_id, target_id, action) values ($1,$2,'loot')`, [raj, mia]);
+  await db.query(`update profiles set trust_tier=2 where id=$1`, [raj]);
+});
+
+console.log('\nLooty Match — connections');
+await check('mutual loot creates a Connection and its chat', async () => {
+  await loot(noor, mia);
+  eq((await one(`select count(*) c from connections where user_a=least($1::uuid,$2::uuid) and user_b=greatest($1::uuid,$2::uuid)`, [mia, noor])).c, 1, 'connection');
+  eq((await one(`select count(*) c from threads where type='connection' and user_a=least($1::uuid,$2::uuid) and user_b=greatest($1::uuid,$2::uuid)`, [mia, noor])).c, 1, 'thread');
+});
+await check('a pass is final — the other person looting does not connect', async () => {
+  await loot(mia, raj, 'pass');
+  await loot(raj, mia);
+  eq((await one(`select count(*) c from connections where user_a=least($1::uuid,$2::uuid) and user_b=greatest($1::uuid,$2::uuid)`, [mia, raj])).c, 0);
+});
+await check('connections cannot be created directly', () =>
+  denied(mia, `insert into connections (user_a, user_b) values (least($1::uuid,$2::uuid), greatest($1::uuid,$2::uuid))`, [mia, far]));
+await check('either side can end a Connection', async () => {
+  await asUser(noor, () => db.query(
+    `update connections set status='ended', ended_at=now() where user_a=least($1::uuid,$2::uuid) and user_b=greatest($1::uuid,$2::uuid)`, [mia, noor]));
+  eq((await one(`select status from connections where user_a=least($1::uuid,$2::uuid) and user_b=greatest($1::uuid,$2::uuid)`, [mia, noor])).status, 'ended');
+});
+
+console.log('\nLooty Match — daily quota (IST)');
+const quotaUser = await mkUser('quo');
+await check('free tier stops at 10 loots a day', async () => {
+  for (let i = 0; i < 10; i++) {
+    const t = await mkUser('t' + i);
+    await loot(quotaUser, t);
+  }
+  eq((await one(`select loots_used_today($1) n`, [quotaUser])).n, 10);
+  const extra = await mkUser('extra');
+  await denied(quotaUser, `insert into loots (actor_id, target_id, action) values ($1,$2,'loot')`, [quotaUser, extra]);
+});
+await check('passes are free and uncapped', async () => {
+  for (let i = 0; i < 5; i++) {
+    const t = await mkUser('p' + i);
+    await loot(quotaUser, t, 'pass');   // still at the loot cap, must succeed
+  }
+});
+await check('quota counts on the IST day, not UTC', async () => {
+  // A loot made "yesterday" in IST must not count today.
+  await db.query(
+    `update loots set created_at = now() - interval '2 days' where actor_id=$1`, [quotaUser]);
+  eq((await one(`select loots_used_today($1) n`, [quotaUser])).n, 0);
+});
+await check('paid tier gets 50', async () => {
+  eq((await one(`select daily_loot_limit($1) n`, [quotaUser])).n, 10);
+  await db.query(`insert into subscriptions (user_id, status, current_period_end)
+                  values ($1,'active', now()+interval '30 days')`, [quotaUser]);
+  eq((await one(`select daily_loot_limit($1) n`, [quotaUser])).n, 50);
+});
+await check('expired subscription does not count as paid', async () => {
+  await db.query(`update subscriptions set current_period_end = now()-interval '1 day' where user_id=$1`, [quotaUser]);
+  eq((await one(`select is_paid($1) p`, [quotaUser])).p, false);
+  await db.query(`delete from subscriptions where user_id=$1`, [quotaUser]);
+});
+
+console.log('\nLooty Match — "looted you" is paid, and enforced server-side');
+const admirer = await mkUser('adm');
+const admired = await mkUser('adr');
+await check('free user gets a count but NO identities', async () => {
+  await loot(admirer, admired);
+  await db.query(`select set_config('request.jwt.claim.sub',$1,false)`, [admired]);
+  eq((await one(`select looted_you_count() c`)).c, 1, 'count');
+  eq((await db.query(`select * from looted_you()`)).rows.length, 0, 'rows leaked to free user');
+});
+await check('paid user gets the identities', async () => {
+  await db.query(`insert into subscriptions (user_id, status, current_period_end)
+                  values ($1,'active', now()+interval '30 days')`, [admired]);
+  await db.query(`select set_config('request.jwt.claim.sub',$1,false)`, [admired]);
+  const rows = (await db.query(`select * from looted_you()`)).rows;
+  eq(rows.length, 1); eq(rows[0].id, admirer);
+});
+await check('the loots table cannot be read by target — that is the paid feature', async () => {
+  const r = await one(`select count(*) c from pg_policies
+    where tablename='loots' and cmd='SELECT' and qual like '%target_id%'`);
+  eq(r.c, 0, 'policies exposing target_id');
+});
+
+console.log('\nLooty Match — feed filters');
+await check('feed excludes self and anyone already decided on', async () => {
+  const ids = await feedFor(mia);
+  if (ids.includes(mia)) throw new Error('self in feed');
+  if (ids.includes(noor)) throw new Error('already-looted user in feed');
+  if (ids.includes(raj)) throw new Error('passed user in feed');
+});
+await check('default scope is same college only', async () => {
+  const ids = await feedFor(mia);
+  if (ids.includes(far)) throw new Error('other-college user in same_college feed');
+});
+await check('all_india scope widens the feed', async () => {
+  await db.query(`update profiles set match_scope='all_india' where id=$1`, [mia]);
+  const ids = await feedFor(mia);
+  if (!ids.includes(far)) throw new Error('other-college user missing from all_india feed');
+});
+await check('same-gender safety toggle filters the feed', async () => {
+  const man = await mkUser('man1', { gender: 'man' });
+  await db.query(`update profiles set match_same_gender_only=true where id=$1`, [mia]);
+  const ids = await feedFor(mia);
+  if (ids.includes(man)) throw new Error('opposite gender present with safety toggle on');
+  await db.query(`update profiles set match_same_gender_only=false where id=$1`, [mia]);
+});
+await check('blocked users never appear in the feed', async () => {
+  const blocked = await mkUser('blk');
+  await asUser(blocked, () => db.query(`insert into blocks (blocker_id, blocked_id) values ($1,$2)`, [blocked, mia]));
+  const ids = await feedFor(mia);
+  if (ids.includes(blocked)) throw new Error('blocker in feed');
+});
+await check('banned and unverified users are hidden from the feed', async () => {
+  const banned = await mkUser('ban1');
+  const tier0 = await mkUser('unverif', { tier: 0 });
+  await db.query(`insert into bans (user_id,type,ends_at) values ($1,'temporary',now()+interval '5 days')`, [banned]);
+  const ids = await feedFor(mia);
+  if (ids.includes(banned)) throw new Error('banned user in feed');
+  if (ids.includes(tier0)) throw new Error('unverified user in feed');
+});
+
+console.log('\nLooty Match — blocking tears down a Connection');
+await check('blocking ends the Connection and its chat', async () => {
+  const x = await mkUser('conx'), y = await mkUser('cony');
+  await loot(x, y); await loot(y, x);
+  eq((await one(`select status from connections where user_a=least($1::uuid,$2::uuid) and user_b=greatest($1::uuid,$2::uuid)`, [x, y])).status, 'active');
+  await asUser(x, () => db.query(`insert into blocks (blocker_id, blocked_id) values ($1,$2)`, [x, y]));
+  eq((await one(`select status from connections where user_a=least($1::uuid,$2::uuid) and user_b=greatest($1::uuid,$2::uuid)`, [x, y])).status, 'ended');
+  const t = await one(`select ended_at from threads where type='connection' and user_a=least($1::uuid,$2::uuid) and user_b=greatest($1::uuid,$2::uuid)`, [x, y]);
+  if (!t.ended_at) throw new Error('thread not ended');
+});
+
+// ---------------------------------------------------------------------------
+// Function execute privileges
+//
+// Postgres grants EXECUTE to PUBLIC by default, unlike tables. These pin that the
+// default has been revoked, so safety does not depend on every future function
+// remembering to check auth.uid().
+// ---------------------------------------------------------------------------
+
+console.log('\nFunction execute privileges');
+await check('anon can execute nothing in public', async () => {
+  const r = await one(`select count(*) c from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname='public' and p.prokind='f'
+      and has_function_privilege('anon', p.oid, 'execute')`);
+  eq(r.c, 0, 'functions executable by anon');
+});
+await check('service-role-only functions stay closed to authenticated', async () => {
+  for (const fn of ['apply_verification(uuid)', 'hash_email_code(text,text)', 'trips_word_filter(text)']) {
+    const r = await one(`select has_function_privilege('authenticated', $1, 'execute') x`, [fn]);
+    eq(r.x, false, fn);
+  }
+});
+await check('the functions the app actually calls are still callable', async () => {
+  for (const fn of ['current_tier()', 'match_feed(integer)', 'looted_you()', 'looted_you_count()',
+                    'join_group(group_category)', 'confirm_college_email(text)', 'open_dm_thread(uuid)']) {
+    const r = await one(`select has_function_privilege('authenticated', $1, 'execute') x`, [fn]);
+    eq(r.x, true, fn);
+  }
+});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 await db.close();
 process.exit(fail ? 1 : 0);

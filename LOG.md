@@ -15,6 +15,65 @@
 
 ---
 
+## 2026-08-28 — Phase 4: Looty Match, and a function-privilege hole closed
+
+Migrations `…011_match` and `…012_lock_function_execute` deployed. Feed, loot/pass,
+daily quota, Connections, the paid "looted you" list. 27 new tests (128 total).
+
+**Screenshot handling decided** (owner): `FLAG_SECURE` on Android <14 so
+screenshots are blocked, `ScreenCaptureCallback` on 14+ so they are allowed and the
+other person is notified. Recorded in CONTEXT.md §7 with three implementation traps
+— chiefly that `FLAG_SECURE` is per-Activity, so an Expo app must toggle it on
+entering and leaving a Connected chat or the whole app becomes unscreenshottable.
+
+**Design decisions:**
+
+- **"Looted you" is two functions, not one that blurs.** `looted_you_count()`
+  returns a number to everyone; `looted_you()` returns identities only when
+  `is_paid()`. Blurring client-side is not privacy — the rows still cross the
+  network and anyone can read them off the wire. Free users never receive the
+  identities at all.
+- **`loots` RLS exposes `actor_id` only, never `target_id`.** A policy letting you
+  read rows where you are the target would hand away the paid feature for free.
+- **The daily quota counts in IST**, not UTC. A UTC boundary would reset everyone's
+  loots at 5:30am India time — surprising, and exploitable by anyone awake then.
+- **Passes are free and uncapped.** Charging for passes makes the feed unusable;
+  you must be able to skip freely to reach someone worth looting.
+- **A pass is final.** `loots` is unique per pair, so it is a decision rather than a
+  vote — if A passed B, B looting A later connects nobody.
+- **Connections have no INSERT grant.** They exist only as a consequence of a mutual
+  loot, created by trigger, which also opens the chat thread immediately.
+- **Blocking ends a Connection and its thread**, extending the Phase 2 teardown.
+- **No gender preference filter.** There is a same-gender *safety* toggle, opt-in.
+  A "show me men / women" filter would read as dating and undercut the
+  repositioning.
+- **`subscriptions` pulled forward from Phase 6**, since the loot quota depends on
+  knowing who is paid. Only the shape needed for `is_paid()`; Play Billing wiring
+  is still Phase 6.
+
+**Security hole found and closed — worth remembering.** Probing the live API showed
+`anon` could call `looted_you()` and `match_feed()`. **Postgres grants EXECUTE on
+every function to PUBLIC by default**, the opposite of tables, which start closed.
+So the schema looked locked while every function was callable by anyone holding the
+anon key — which ships in the APK.
+
+Nothing actually leaked: each function checks `auth.uid()` and returned empty for an
+anonymous caller. But that made safety a property of every function *remembering* to
+check, rather than of the permission system, and the first function added without
+that check would have been a live hole.
+
+Migration 12 revokes the PUBLIC default on all existing functions, re-grants only
+the ones the client actually calls, and sets `alter default privileges` so future
+functions start closed. Verified against the live project: anon now receives
+`42501 permission denied`. A test pins that no function in `public` is executable by
+`anon`.
+
+**Test fixture notes:** pglite binds parameters as text, so `least($1,$2)` on uuids
+raises "operator does not exist: uuid = text" — the Phase 4 assertions cast
+explicitly. Fixture usernames also have to clear the 3-character minimum.
+
+---
+
 ## 2026-08-28 — Room numbers stay quiet; friends deliberately not grouped
 
 Two UX decisions on group rooms, no code change needed — the schema already

@@ -65,7 +65,7 @@ document, the log, the Phase 1 database schema, and its tests.
 ### What exists right now
 
 ```
-supabase/migrations/   18 migrations. Phase 1: colleges + domain allowlist,
+supabase/migrations/   19 migrations. Phase 1: colleges + domain allowlist,
                        profiles, verifications + bans + access gate, RLS +
                        column grants. Phase 2: blocks + friendships, threads +
                        messages, reports, Phase 2 RLS. Then: college email
@@ -76,9 +76,10 @@ supabase/migrations/   18 migrations. Phase 1: colleges + domain allowlist,
                        appeals. Then: function EXECUTE lockdown (x2),
                        profile-enumeration fix + group_thread(), avatars
                        storage bucket, derived onboarding_complete,
-                       my_threads() + realtime publication
+                       my_threads() + realtime publication, match filter
+                       grants + my_match_prefs()
 supabase/functions/    issue-college-code (deployed)
-supabase/tests/run.mjs 155 behaviour tests, run with `npm run test:db`
+supabase/tests/run.mjs 158 behaviour tests, run with `npm run test:db`
 supabase/seed.sql      sample colleges; domain list deliberately EMPTY
 mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/lib/tiers.ts     client mirror of the server tier gate — NOT security
@@ -87,15 +88,23 @@ mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/components/ui.tsx  Screen / Field / Button / Notice — the whole kit
   src/components/chat.tsx  MessageList + Composer, shared by groups and DMs
   src/app/(auth)/      sign-in, verify, college, profile-setup — all REAL
-  src/app/(app)/       groups/, chats/, profile — REAL
-                       match, looted — still stubs
+  src/app/(app)/       groups/, chats/, match, looted, profile — all REAL
+  src/app/banned.tsx   restriction notice + appeal form — REAL
 ```
 
-Built and working: sign in, college-email verification, profile setup with photo,
-your own profile, the three group rooms with live chat, and the DM inbox with 1:1
-chat. Report and Block sit in the chat header.
+**Every screen is now built.** Sign in, college-email verification, profile setup
+with photo, your own profile, three group rooms with live chat, the DM inbox and 1:1
+chat, the Match feed with loot/pass and daily quota, the Looted-you list with its
+paywall, and the restriction screen with an appeal form. Report and Block sit in the
+chat header.
 
-**Still placeholders: Looty Match and the Looted-you list.**
+The only remaining `Placeholder` is the "Supabase not configured" screen, which is
+meant to be one.
+
+**Not built yet:** Phase 6 (ads, Play Billing) and Phase 7's store half, both
+parked behind paid accounts. Google Sign-In. Friend requests and username search —
+the schema is complete but there is no UI to send or accept one, so DM threads can
+currently only come from a Connection.
 
 **Messages are text-only in the client so far.** The schema supports images in DMs
 and Connected chats (`messages.image_url`), and the spec calls for blur-by-default
@@ -112,7 +121,7 @@ Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
 
 ### Verified so far
 
-`npm run test:db` passes 155/155. `npx tsc --noEmit` is clean, and
+`npm run test:db` passes 158/158. `npx tsc --noEmit` is clean, and
 `npx expo export --platform android` produces a bundle, which proves imports
 resolve. Nothing has been run on a device or emulator.
 
@@ -163,7 +172,7 @@ banned addresses.
 ### Live infrastructure
 
 **Supabase project `zsfjwlmeeodsiwruvine`**, region `ap-south-1` (Mumbai),
-Postgres 17.6, on the free plan. All 18 migrations are deployed, plus the `issue-college-code` Edge Function. The repo is linked
+Postgres 17.6, on the free plan. All 19 migrations are deployed, plus the `issue-college-code` Edge Function. The repo is linked
 via the Supabase CLI, so `npx supabase db push` applies new migrations directly —
 it authenticates with the stored access token and does not prompt for the database
 password.

@@ -15,6 +15,52 @@
 
 ---
 
+## 2026-08-29 — Match, Looted-you and the restriction screen: every screen now real
+
+Looty Match feed with loot/pass and the daily quota, the Looted-you list with its
+paywall, and the restriction screen with an appeal form. 3 new tests (158 total).
+No placeholder screens remain except the deliberate "Supabase not configured" one.
+
+**Bug found while building: the Match filters could not be changed.**
+`match_scope` and `match_same_gender_only` were added in migration 11 but never
+granted to `authenticated`, so the columns existed and nothing could write them.
+Migration 19 grants UPDATE.
+
+Reading them back is a **function, not a SELECT grant** — column grants are
+role-wide, so granting SELECT would let anyone read anyone's
+`match_same_gender_only`, which quietly announces that a person filters by gender.
+`my_match_prefs()` returns only the caller's own.
+
+**The Looted-you paywall shows placeholders, not blurred photos, and the comment
+in the file says why.** A blurred photo is still a photo that crossed the network
+and can be read off the wire or out of a debugger. `looted_you()` refuses to return
+identities to a free account at all, so there is genuinely nothing to blur. The UI
+says so in plain words rather than implying censorship it is not performing.
+
+**Routing bug found while building the restriction screen.** The root layout sent
+banned users to `/banned` and bounced them back every time they navigated away —
+making it a cage. But CONTEXT.md §3.5 says a ban is not a logout and reading groups
+still works. The screen is now shown **once per session** to explain what happened
+and offer an appeal, after which the user moves freely; everything is already gated
+because `current_tier()` returns 0 while banned. The design and the routing now
+agree.
+
+**Other decisions:**
+
+- Card height in the feed is **measured, not assumed**, so vertical paging lines up
+  on any device rather than on the one it was written for.
+- Passing is free and uncapped, so only loots decrement the counter shown in the
+  header. That counter is a courtesy — the quota lives in an RLS check, which is
+  why hitting it surfaces as a policy refusal rather than a friendly error.
+- The Connection alert only appears when the other person had already looted you,
+  checked by querying `connections` after the insert rather than guessing.
+
+**Verified live** against the real project: `match_feed`, `loots_remaining`,
+`my_match_prefs`, `looted_you_count` and `looted_you` all respond correctly for a
+Tier 0 account — empty feed, no identities, no errors.
+
+---
+
 ## 2026-08-29 — Chat screens: group rooms and 1:1 DMs, with realtime
 
 Groups list, group room, DM inbox and 1:1 chat, all working against the live

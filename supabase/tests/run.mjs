@@ -796,6 +796,26 @@ await check('banned and unverified users are hidden from the feed', async () => 
   if (ids.includes(tier0)) throw new Error('unverified user in feed');
 });
 
+console.log('\nLooty Match — filter preferences');
+await check('a user can change their own filters', () =>
+  asUser(mia, () => db.query(
+    `update profiles set match_scope='all_india', match_same_gender_only=true where id=$1`, [mia])));
+await check('my_match_prefs returns the caller’s own settings', () =>
+  asUser(mia, async () => {
+    const r = (await db.query(`select * from my_match_prefs()`)).rows[0];
+    eq(r.match_scope, 'all_india');
+    eq(r.match_same_gender_only, true);
+  }));
+await check('filters are not readable about other users', async () => {
+  for (const col of ['match_scope', 'match_same_gender_only']) {
+    const r = await one(`select count(*) c from information_schema.column_privileges
+      where table_name='profiles' and column_name=$1 and grantee='authenticated'
+        and privilege_type='SELECT'`, [col]);
+    eq(r.c, 0, `${col} should not be broadly readable`);
+  }
+  await db.query(`update profiles set match_scope='same_college', match_same_gender_only=false where id=$1`, [mia]);
+});
+
 console.log('\nLooty Match — blocking tears down a Connection');
 await check('blocking ends the Connection and its chat', async () => {
   const x = await mkUser('conx'), y = await mkUser('cony');

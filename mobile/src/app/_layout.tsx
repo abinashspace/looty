@@ -8,7 +8,7 @@
 
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { ActivityIndicator, View, useColorScheme } from 'react-native';
 
 import { Placeholder } from '@/components/placeholder';
@@ -27,6 +27,8 @@ function RootNavigator() {
   const { loading, step, isBanned } = useSession();
   const segments = useSegments();
   const router = useRouter();
+  // The banned screen is an explanation, not a cage — shown once per session.
+  const bannedShown = useRef(false);
 
   useEffect(() => {
     if (loading) return;
@@ -35,11 +37,17 @@ function RootNavigator() {
     const group = segments[0];
 
     // A ban is not a logout. The user keeps their account and can still read
-    // groups and file an appeal — they just cannot participate. See CONTEXT.md §3.5.
-    if (isBanned && group !== 'banned') {
+    // groups — they just cannot participate. So the banned screen is shown ONCE,
+    // to explain what happened and offer an appeal, and after that they move
+    // freely. Everything is already gated by tier, because current_tier() returns
+    // 0 while banned; bouncing them back here would be a wall the design does not
+    // call for. See CONTEXT.md §3.5.
+    if (isBanned && !bannedShown.current && group !== 'banned') {
+      bannedShown.current = true;
       router.replace('/banned');
       return;
     }
+    if (isBanned) return;
 
     if (step === 'done') {
       if (group === '(auth)') router.replace('/(app)/groups');

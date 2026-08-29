@@ -15,6 +15,34 @@
 
 ---
 
+## 2026-08-28 — Room numbers stay quiet; friends deliberately not grouped
+
+Two UX decisions on group rooms, no code change needed — the schema already
+carries everything both require.
+
+**Users see "Study", not "Study 2".** The room number appears once, in the group
+info line as "Room 2 · 847 members". Reasoning: users cannot pick their room, so a
+prominent number reads as a rank they missed and invites "how do I get into
+Study 1?". Keeping it visible somewhere still answers the one question that
+matters — why two friends comparing screens see different conversations.
+
+**Room assignment stays capacity-only. `join_group()` will NOT prefer rooms where
+a user's friends already are.** This was considered and rejected:
+
+- Friends are nearly always at the same college, so assigning by the friendship
+  graph would silently re-create **per-college rooms** — precisely what was
+  rejected when groups were made global. Arriving there by accident is worse than
+  deciding it.
+- At 1024 members it achieves almost nothing: nobody notices two friends among a
+  thousand people. The benefit is largely imaginary; the cost (uneven room fill,
+  more complex joins) is real.
+- Groups exist to meet students you would never otherwise meet. People who want to
+  talk to people they already know have friend DMs.
+- It also does not bite until a category exceeds 1024 members, at which point there
+  is real usage data to decide from rather than a guess.
+
+---
+
 ## 2026-08-28 — Phase 3: groups
 
 Migration `20260828120010` deployed. Study / Sports / Friends, global, open join,

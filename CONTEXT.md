@@ -174,6 +174,20 @@ No video. **No content moderation** — these are friend-gated, so the risk is l
 - **Text only.** No images. This is what keeps the moderation load survivable.
 - **1024 members per room**, matching WhatsApp's limit. At capacity, the next room
   auto-creates: Study 1, Study 2, Study 3…
+- **Users see "Study", not "Study 2".** The room number appears exactly once, in
+  the group info line as *"Room 2 · 847 members"* — never in the tab, the list, or
+  the chat header. Users cannot choose their room, so a prominent number reads as a
+  rank they missed, and invites "how do I get into Study 1?". The quiet version
+  still answers the one question that matters: why two friends comparing screens
+  see different conversations. No schema change needed — the client renders the
+  `category` as the label and keeps `room_number` for the info line.
+- **Room assignment is by capacity only. Friends are deliberately NOT grouped
+  together.** Friends are nearly always at the same college, so assigning rooms by
+  the friendship graph would silently re-create per-college rooms — the thing this
+  design explicitly rejected by making groups global. It would also do very little:
+  nobody notices two friends among a thousand people. People who want to talk to
+  people they already know have friend DMs; these rooms exist to meet students you
+  would never otherwise meet.
 - New joiners see the **last 50 messages**.
 - Automatic profanity filter.
 

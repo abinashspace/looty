@@ -65,7 +65,7 @@ document, the log, the Phase 1 database schema, and its tests.
 ### What exists right now
 
 ```
-supabase/migrations/   14 migrations. Phase 1: colleges + domain allowlist,
+supabase/migrations/   15 migrations. Phase 1: colleges + domain allowlist,
                        profiles, verifications + bans + access gate, RLS +
                        column grants. Phase 2: blocks + friendships, threads +
                        messages, reports, Phase 2 RLS. Then: college email
@@ -73,8 +73,9 @@ supabase/migrations/   14 migrations. Phase 1: colleges + domain allowlist,
                        groups, membership, group messages, word filter.
                        Phase 4: loots, connections, subscriptions, feed +
                        quota. Phase 5: ban engine, brigade unwinding,
-                       appeals. Then: function EXECUTE lockdown (x2)
-supabase/tests/run.mjs 145 behaviour tests, run with `npm run test:db`
+                       appeals. Then: function EXECUTE lockdown (x2),
+                       profile-enumeration fix + group_thread()
+supabase/tests/run.mjs 150 behaviour tests, run with `npm run test:db`
 supabase/seed.sql      sample colleges; domain list deliberately EMPTY
 mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/lib/tiers.ts     client mirror of the server tier gate — NOT security
@@ -93,7 +94,7 @@ Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
 
 ### Verified so far
 
-`npm run test:db` passes 145/145. `npx tsc --noEmit` is clean, and
+`npm run test:db` passes 150/150. `npx tsc --noEmit` is clean, and
 `npx expo export --platform android` produces a bundle, which proves imports
 resolve. Nothing has been run on a device or emulator.
 
@@ -119,8 +120,13 @@ an **event trigger** that closes every function created in `public` from then on
 plus a sweep. A test creates a throwaway function and asserts `anon` cannot execute
 it, so this cannot regress quietly. Verified live: anon gets `42501`.
 
-Not yet verified live: authenticated-role behaviour. That would mean creating a real
-user in the production project, which has not been done.
+**Authenticated behaviour is now verified live too.** A real test account
+(`looty.devtest2@gmail.com`) confirms: the signup trigger creates the profile row,
+`full_name` is refused (`42501`), self-promotion to Tier 2 is refused, `current_tier()`
+returns 0, and a Tier 0 user sees only their own profile row.
+
+That last one was a **bug found by this test**: before migration 15, any Tier 0 user
+could `select * from profiles` and dump the whole student directory. See §7.
 
 ### Still missing from Phase 1
 
@@ -131,7 +137,7 @@ below. Everything else in Phase 1 is done.
 ### Live infrastructure
 
 **Supabase project `zsfjwlmeeodsiwruvine`**, region `ap-south-1` (Mumbai),
-Postgres 17.6, on the free plan. All 14 migrations are deployed. The repo is linked
+Postgres 17.6, on the free plan. All 15 migrations are deployed. The repo is linked
 via the Supabase CLI, so `npx supabase db push` applies new migrations directly —
 it authenticates with the stored access token and does not prompt for the database
 password.

@@ -15,6 +15,47 @@
 
 ---
 
+## 2026-08-29 — Live auth verified; profile-enumeration hole found and closed
+
+Enabled email/password auth for development so the UI can be built and tested
+without waiting on a Google OAuth client. Google Sign-In will be added later as a
+second provider — the session logic is provider-agnostic, so it is a config change.
+
+**Auth config pushed** via `supabase config push`. Only three settings changed:
+`enable_confirmations` off (so dev signups work immediately), `otp_length` 8→6, and
+an MFA flag. One deliberate edit first: `config.toml` shipped
+`max_frequency = "1s"` for auth emails, which on a live project lets anyone
+email-bomb an address through the signup form. Raised to 60s before pushing.
+
+**Authenticated behaviour verified against the real project** for the first time,
+using a test account. Confirmed: the signup trigger creates the profile row,
+`full_name` is refused, self-promotion to Tier 2 is refused, `current_tier()`
+returns 0.
+
+**And that test found a real hole.** A Tier 0 user — anyone with a throwaway Gmail —
+could run `select * from profiles` and get **every row**: username, display name,
+photo URL and college for every verified student on the platform. A scrapeable
+student directory, aimed straight at the one thing Looty sells.
+
+Migration 15 restricts profile reads to your own row unless you are Tier 1+.
+Verified students enumerating each other stays allowed and is in fact the product —
+username search and the Match feed both depend on it. The hole was specifically that
+Tier 0 had the same reach.
+
+That created a second problem: Tier 0 can read groups, and a wall of anonymous
+uuids is not readable. Added `group_thread(group_id, limit)`, a security-definer
+function returning messages already joined to their senders — so an unverified user
+learns about exactly the people who posted in the room they are reading, rather than
+the whole directory. It also implements the "last 50 messages" default in one place,
+and collapses blocked senders (nulled identity plus an `is_blocked` flag) rather
+than removing their messages, which would leave replies dangling.
+
+**Note on how this was caught:** not by the test suite, which passed throughout, but
+by signing in as a real user against the live project and looking at what came back.
+Worth repeating for other surfaces.
+
+---
+
 ## 2026-08-28 — Phase 5: moderation engine, and the function lockdown made real
 
 Migrations `…013_moderation_engine` and `…014_lock_new_functions` deployed.

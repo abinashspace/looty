@@ -923,6 +923,55 @@ await check('moderation internals are not callable by clients', async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Profile enumeration
+// ---------------------------------------------------------------------------
+
+console.log('\nProfile enumeration');
+const lurker = await mkUser('lurk', { tier: 0 });
+await check('Tier 0 cannot enumerate the directory', () =>
+  asUser(lurker, async () => {
+    const n = Number((await db.query(`select count(*) c from profiles`)).rows[0].c);
+    if (n > 1) throw new Error(`Tier 0 saw ${n} profiles; should only see their own`);
+  }));
+await check('Tier 0 can still see their own profile', () =>
+  asUser(lurker, async () => {
+    const n = Number((await db.query(`select count(*) c from profiles where id=$1`, [lurker])).rows[0].c);
+    eq(n, 1);
+  }));
+await check('a verified user can still search the directory', () =>
+  asUser(g.gina, async () => {
+    const n = Number((await db.query(`select count(*) c from profiles`)).rows[0].c);
+    if (n < 2) throw new Error('verified user cannot see other profiles');
+  }));
+// Pick whichever room actually has messages — earlier tests post into whichever
+// room capacity assigned them, which is not necessarily Study 1.
+const chattyRoom = (await one(
+  `select group_id from group_messages group by group_id order by count(*) desc limit 1`)).group_id;
+await check('Tier 0 still gets sender names when reading a group', async () => {
+  const room = chattyRoom;
+  await asUser(lurker, async () => {
+    const rows = (await db.query(`select * from group_thread($1, 50)`, [room])).rows;
+    if (!rows.length) throw new Error('no messages returned');
+    if (rows.some(r => !r.username && !r.is_blocked)) throw new Error('sender name missing');
+  });
+});
+await check('group_thread collapses blocked senders instead of hiding them', async () => {
+  const room = chattyRoom;
+  const sender = (await one(`select sender_id from group_messages where group_id=$1 limit 1`, [room])).sender_id;
+  const nosy2 = await mkUser('nosy2');
+  await asUser(nosy2, () => db.query(`insert into blocks (blocker_id, blocked_id) values ($1,$2)`, [nosy2, sender]));
+  await asUser(nosy2, async () => {
+    const rows = (await db.query(`select * from group_thread($1, 50)`, [room])).rows;
+    const blocked = rows.filter(r => r.sender_id === sender);
+    if (!blocked.length) throw new Error('blocked sender vanished entirely');
+    for (const r of blocked) {
+      eq(r.is_blocked, true, 'is_blocked flag');
+      eq(r.body ?? 'null', 'null', 'blocked body should be withheld');
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Function execute privileges
 //
 // Postgres grants EXECUTE to PUBLIC by default, unlike tables. These pin that the

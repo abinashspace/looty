@@ -15,6 +15,61 @@
 
 ---
 
+## 2026-08-28 — Phase 5: moderation engine, and the function lockdown made real
+
+Migrations `…013_moderation_engine` and `…014_lock_new_functions` deployed.
+17 new tests (145 total, all passing).
+
+**The engine:** 8 effective reports trigger a 5-day ban, 3 unlifted bans escalate to
+permanent, permanent bans anchor the hashed college address. All automatic, no human
+anywhere in the path.
+
+**Design decisions:**
+
+- **Reports are *spent* when they cause a ban** (`reports.resolved_by_ban_id`), so
+  one incident cannot ban the same person twice. A second ban needs 8 fresh reports.
+- **Brigades unwind themselves.** Because each ban records the reports that
+  justified it, banning any user triggers a recount of every ban that leaned on
+  their reports — and lifts it if the count drops below 8. Eight coordinated
+  accounts can ban a victim, but the moment those accounts are banned, the victim is
+  released automatically, with the reason recorded. This is the thing that makes
+  human-free banning defensible rather than reckless.
+- **Lifted bans do not count toward escalation.** A ban that was overturned must not
+  push someone closer to permanent.
+- **Lifting a permanent ban releases the identity anchor**, or the user stays locked
+  out of signup for a ban that no longer exists.
+- **`is_banned()` was redefined** to ignore lifted bans — it shadows the Phase 1
+  version, so every tier check, feed filter and post gate inherits the change for
+  free.
+- **No UPDATE grant on `appeals`**: an appellant cannot mark their own appeal
+  overturned. `resolve_appeal()` is service-role only.
+- **One appeal per ban**, enforced by a unique index — otherwise "appeals are low
+  volume" stops being true.
+
+**The function-privilege guard from migration 12 was fake, and a test proved it.**
+
+Migration 12 ended with `alter default privileges in schema public revoke execute
+on functions from public`. That line does nothing: `pg_default_acl` stays empty and
+new functions still receive the built-in PUBLIC EXECUTE. Verified directly — after
+migration 12, a freshly created function was still executable by `anon`.
+
+So migration 13's two trigger functions were wide open. Harmless individually
+(trigger functions do not need EXECUTE to fire, and neither exposes anything), but
+it showed the guard was imaginary and the next function might not be harmless.
+
+Migration 14 replaces it with an **event trigger** on `ddl_command_end` that revokes
+PUBLIC from every function created in `public`, plus a sweep for existing ones. The
+event trigger creation is wrapped in an exception handler, since it needs elevated
+rights and must not fail the migration if the platform refuses — Supabase accepted
+it. A new test creates a throwaway function and asserts `anon` cannot execute it, so
+this cannot silently regress again.
+
+**Worth noting how this was found:** the test `anon can execute nothing in public`,
+written in the previous session, failed the moment Phase 5 added functions. That is
+the entire value of pinning a security property rather than checking it once.
+
+---
+
 ## 2026-08-28 — Phase 4: Looty Match, and a function-privilege hole closed
 
 Migrations `…011_match` and `…012_lock_function_execute` deployed. Feed, loot/pass,

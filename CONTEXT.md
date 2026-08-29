@@ -58,22 +58,23 @@ document, the log, the Phase 1 database schema, and its tests.
 | 2 | Friends, DMs, block/report primitives | **Schema + tests done.** No UI |
 | 3 | Groups | **Schema + tests done.** No UI |
 | 4 | Looty Match | **Schema + tests done.** No UI |
-| 5 | Automatic moderation engine | Not started |
+| 5 | Automatic moderation engine | **Schema + tests done.** No UI |
 | 6 | Ads + subscription | Not started |
 | 7 | Play Store requirements | Not started |
 
 ### What exists right now
 
 ```
-supabase/migrations/   12 migrations. Phase 1: colleges + domain allowlist,
+supabase/migrations/   14 migrations. Phase 1: colleges + domain allowlist,
                        profiles, verifications + bans + access gate, RLS +
                        column grants. Phase 2: blocks + friendships, threads +
                        messages, reports, Phase 2 RLS. Then: college email
                        verification (the only route to Tier 2). Phase 3:
                        groups, membership, group messages, word filter.
                        Phase 4: loots, connections, subscriptions, feed +
-                       quota. Then: function EXECUTE lockdown
-supabase/tests/run.mjs 128 behaviour tests, run with `npm run test:db`
+                       quota. Phase 5: ban engine, brigade unwinding,
+                       appeals. Then: function EXECUTE lockdown (x2)
+supabase/tests/run.mjs 145 behaviour tests, run with `npm run test:db`
 supabase/seed.sql      sample colleges; domain list deliberately EMPTY
 mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/lib/tiers.ts     client mirror of the server tier gate — NOT security
@@ -92,7 +93,7 @@ Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
 
 ### Verified so far
 
-`npm run test:db` passes 128/128. `npx tsc --noEmit` is clean, and
+`npm run test:db` passes 145/145. `npx tsc --noEmit` is clean, and
 `npx expo export --platform android` produces a bundle, which proves imports
 resolve. Nothing has been run on a device or emulator.
 
@@ -101,7 +102,7 @@ RLS genuinely applies to them. Phase 1 tests run as superuser and therefore chec
 grant *metadata* rather than live enforcement — a weaker guarantee, worth knowing
 when reading them.
 
-**Against the live database:** all 20 tables exist, and every one of them refuses
+**Against the live database:** all 21 tables exist, and every one of them refuses
 the `anon` role outright (`42501 permission denied`). That matters more than it
 looks — the anon key ships inside the APK and anyone can extract it in a minute, so
 "anon can read nothing" is the property that keeps the whole database private.
@@ -111,9 +112,12 @@ every new function to PUBLIC by default — the opposite of tables, which start
 closed. So `anon` could call `looted_you()` and `match_feed()` on the live project.
 Nothing leaked, because each function checks `auth.uid()` and returned empty. But
 that made safety depend on every function remembering to check, rather than on the
-permission system. Migration 12 revokes the PUBLIC default, re-grants only what the
-client actually calls, and sets `alter default privileges` so new functions start
-closed. Verified live: anon now gets `42501 permission denied`.
+permission system. Migration 12 revoked it and re-granted only what the client calls — but its
+`alter default privileges` line silently did nothing (`pg_default_acl` stayed
+empty), so migration 13's new trigger functions were open again. Migration 14 adds
+an **event trigger** that closes every function created in `public` from then on,
+plus a sweep. A test creates a throwaway function and asserts `anon` cannot execute
+it, so this cannot regress quietly. Verified live: anon gets `42501`.
 
 Not yet verified live: authenticated-role behaviour. That would mean creating a real
 user in the production project, which has not been done.
@@ -127,7 +131,7 @@ below. Everything else in Phase 1 is done.
 ### Live infrastructure
 
 **Supabase project `zsfjwlmeeodsiwruvine`**, region `ap-south-1` (Mumbai),
-Postgres 17.6, on the free plan. All 12 migrations are deployed. The repo is linked
+Postgres 17.6, on the free plan. All 14 migrations are deployed. The repo is linked
 via the Supabase CLI, so `npx supabase db push` applies new migrations directly —
 it authenticates with the stored access token and does not prompt for the database
 password.
@@ -225,8 +229,20 @@ No video. **No content moderation** — these are friend-gated, so the risk is l
   - one report per reporter per target, **ever** (no repeat stacking)
   - reporter's account must be **7+ days old and Tier 1+**
   - if a reporter is later banned themselves, **their past reports stop counting**
-    — this retroactively unwinds brigades
-- **3 bans → permanent block**, anchored on hashed phone number (see §4.3).
+- **Brigades unwind themselves, and this is what makes automatic banning
+  survivable.** Each ban records which reports justified it
+  (`reports.resolved_by_ban_id`). When any user is banned, every ban that leaned on
+  their reports is recounted; if it falls below 8, that ban is **lifted
+  automatically**, with the reason stored. Eight coordinated accounts can ban
+  someone — but the moment those accounts are themselves banned, their victim is
+  released, with nobody noticing or filing anything.
+- **Reports are spent when they cause a ban**, so one incident cannot ban the same
+  person twice. A second ban needs 8 fresh reports.
+- **Lifted bans do not count toward escalation.** A ban that was overturned must not
+  push someone closer to permanent.
+- **3 unlifted bans → permanent block**, anchored on the hashed college address
+  (§4.6). Lifting a permanent ban releases that anchor too — otherwise the user
+  stays locked out of signup for a ban that no longer exists.
 - **Appeals** via in-app form → queue reviewed every few days. Volume is low because
   only banned users file them.
 - **Block is separate from report.** Reporting is for the platform; blocking is for
@@ -423,6 +439,9 @@ blocked_terms       term                          -- word filter, ships empty
 loots               actor_id, target_id, action(loot|pass)  -- unique per pair
 connections         user_a, user_b, status  -- from mutual loots only
 subscriptions       user_id, status, current_period_end
+appeals             ban_id (unique), user_id, body, status
+bans                + lifted_at, lift_reason, issued_by
+reports             + resolved_by_ban_id  -- which ban a report was spent on
 banned_identities   hash, kind  -- ban anchor; survives account deletion
 email_verifications user_id, email, college_id, code_salt, code_hash,
                     expires_at, attempts, consumed_at

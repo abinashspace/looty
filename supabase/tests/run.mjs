@@ -785,6 +785,144 @@ await check('blocking ends the Connection and its chat', async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Phase 5 — automatic moderation
+// ---------------------------------------------------------------------------
+
+let modSeq = 0;
+async function fileReports(target, n) {
+  const reporters = [];
+  for (let i = 0; i < n; i++) {
+    const r = await mkUser('rep' + (modSeq++));
+    await db.query(`update profiles set college_email = $2 where id=$1`, [r, `rep${modSeq}@iitb.ac.in`]);
+    await asUser(r, () => db.query(
+      `insert into reports (reporter_id, target_id, context, reason)
+       values ($1,$2,'profile','harassment')`, [r, target]));
+    reporters.push(r);
+  }
+  return reporters;
+}
+const banState = (uid) => one(
+  `select type, ends_at, lifted_at, lift_reason from bans
+   where user_id=$1 order by created_at desc limit 1`, [uid]);
+
+console.log('\nModeration — the ban threshold');
+const victim1 = await mkUser('vic1');
+await check('7 reports is not enough', async () => {
+  await fileReports(victim1, 7);
+  eq((await one(`select is_banned($1) b`, [victim1])).b, false);
+});
+await check('the 8th report triggers a 5-day ban', async () => {
+  await fileReports(victim1, 1);
+  const b = await banState(victim1);
+  eq(b.type, 'temporary');
+  eq((await one(`select is_banned($1) b`, [victim1])).b, true);
+  const days = (await one(
+    `select round(extract(epoch from (ends_at - starts_at))/86400) d from bans where user_id=$1`, [victim1])).d;
+  eq(days, 5, 'ban length in days');
+});
+await check('the reports are spent, so the same incident cannot ban twice', async () => {
+  eq((await one(`select count(*) c from reports where target_id=$1 and resolved_by_ban_id is null`, [victim1])).c, 0);
+});
+await check('a second ban needs 8 fresh reports', async () => {
+  await db.query(`update bans set ends_at = now() - interval '1 day' where user_id=$1`, [victim1]);
+  eq((await one(`select is_banned($1) b`, [victim1])).b, false);
+  await fileReports(victim1, 7);
+  eq((await one(`select is_banned($1) b`, [victim1])).b, false, 'banned on only 7 fresh reports');
+  await fileReports(victim1, 1);
+  eq((await one(`select is_banned($1) b`, [victim1])).b, true);
+});
+await check('the third ban is permanent and anchors the college address', async () => {
+  await db.query(`update profiles set college_email='vic1@iitb.ac.in' where id=$1`, [victim1]);
+  await db.query(`update bans set ends_at = now() - interval '1 day' where user_id=$1 and ends_at is not null`, [victim1]);
+  await fileReports(victim1, 8);
+  const b = await banState(victim1);
+  eq(b.type, 'permanent');
+  eq(b.ends_at ?? 'null', 'null', 'permanent ban should have no end date');
+  eq((await one(
+    `select count(*) c from banned_identities
+     where hash = encode(sha256(convert_to('vic1@iitb.ac.in','UTF8')),'hex')`)).c, 1, 'identity anchor');
+});
+
+console.log('\nModeration — brigades unwind themselves');
+const victim2 = await mkUser('vic2');
+await check('a brigade of 8 lands a ban', async () => {
+  const brigade = await fileReports(victim2, 8);
+  eq((await one(`select is_banned($1) b`, [victim2])).b, true);
+  globalThis.__brigade = brigade;
+});
+await check('banning one brigader drops the count and lifts the ban automatically', async () => {
+  await db.query(
+    `insert into bans (user_id, type, ends_at) values ($1,'temporary', now()+interval '5 days')`,
+    [globalThis.__brigade[0]]);
+  const b = await banState(victim2);
+  if (!b.lifted_at) throw new Error('ban was not lifted');
+  eq((await one(`select is_banned($1) b`, [victim2])).b, false, 'victim still banned');
+});
+await check('the lift records why', async () => {
+  const b = await banState(victim2);
+  if (!/7 of 8/.test(b.lift_reason ?? '')) throw new Error('unexpected reason: ' + b.lift_reason);
+});
+await check('a lifted ban does not count toward the 3-strike escalation', async () => {
+  const v = await mkUser('vic3');
+  const br = await fileReports(v, 8);
+  await db.query(`insert into bans (user_id,type,ends_at) values ($1,'temporary',now()+interval '5 days')`, [br[0]]);
+  // that ban is now lifted; the next one must still be temporary, not permanent
+  await db.query(`update bans set ends_at=now()-interval '1 day' where user_id=$1 and lifted_at is null and ends_at is not null`, [v]);
+  await fileReports(v, 8);
+  eq((await banState(v)).type, 'temporary', 'escalated on a lifted ban');
+});
+await check('reports from banned reporters stop counting', async () => {
+  const v = await mkUser('vic4');
+  const rs = await fileReports(v, 7);
+  eq((await one(`select effective_report_count($1) c`, [v])).c, 7);
+  await db.query(`insert into bans (user_id,type,ends_at) values ($1,'temporary',now()+interval '5 days')`, [rs[0]]);
+  eq((await one(`select effective_report_count($1) c`, [v])).c, 6, 'banned reporter still counted');
+});
+
+console.log('\nModeration — appeals');
+const appellant = await mkUser('app1');
+await check('a banned user can appeal', async () => {
+  await fileReports(appellant, 8);
+  const banId = (await one(`select id from bans where user_id=$1 order by created_at desc limit 1`, [appellant])).id;
+  globalThis.__banId = banId;
+  await asUser(appellant, () => db.query(
+    `insert into appeals (ban_id, user_id, body) values ($1,$2,'This was a coordinated pile-on, please review.')`,
+    [banId, appellant]));
+});
+await check('only one appeal per ban', () =>
+  denied(appellant, `insert into appeals (ban_id, user_id, body) values ($1,$2,'trying again please')`,
+    [globalThis.__banId, appellant]));
+await check('you cannot appeal someone else’s ban', async () => {
+  const nosy = await mkUser('nosy');
+  await denied(nosy, `insert into appeals (ban_id, user_id, body) values ($1,$2,'not my ban but here we are')`,
+    [globalThis.__banId, nosy]);
+});
+await check('appellants cannot mark their own appeal overturned', async () => {
+  const r = await one(`select count(*) c from information_schema.column_privileges
+    where table_name='appeals' and grantee='authenticated' and privilege_type='UPDATE'`);
+  eq(r.c, 0);
+});
+await check('overturning an appeal lifts the ban and releases the anchor', async () => {
+  await db.query(`update profiles set college_email='app1@iitb.ac.in' where id=$1`, [appellant]);
+  await db.query(`update bans set type='permanent', ends_at=null where id=$1`, [globalThis.__banId]);
+  await db.query(
+    `insert into banned_identities (hash, kind)
+     values (encode(sha256(convert_to('app1@iitb.ac.in','UTF8')),'hex'),'college_email')
+     on conflict do nothing`);
+  const appealId = (await one(`select id from appeals where ban_id=$1`, [globalThis.__banId])).id;
+  await db.query(`select resolve_appeal($1,'overturned')`, [appealId]);
+  eq((await one(`select is_banned($1) b`, [appellant])).b, false, 'still banned after overturn');
+  eq((await one(`select count(*) c from banned_identities
+     where hash = encode(sha256(convert_to('app1@iitb.ac.in','UTF8')),'hex')`)).c, 0, 'anchor not released');
+});
+await check('moderation internals are not callable by clients', async () => {
+  for (const fn of ['evaluate_reports(uuid)', 'effective_report_count(uuid)',
+                    'resolve_appeal(uuid,appeal_status)', 'report_ban_threshold()']) {
+    eq((await one(`select has_function_privilege('authenticated',$1,'execute') x`, [fn])).x, false, fn);
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Function execute privileges
 //
 // Postgres grants EXECUTE to PUBLIC by default, unlike tables. These pin that the
@@ -805,6 +943,14 @@ await check('service-role-only functions stay closed to authenticated', async ()
     const r = await one(`select has_function_privilege('authenticated', $1, 'execute') x`, [fn]);
     eq(r.x, false, fn);
   }
+});
+await check('a newly created function is closed automatically', async () => {
+  // Pins the event trigger from migration 14. If it silently stops working, the
+  // next function someone adds is exposed — which is exactly what happened once.
+  await db.exec(`create or replace function public.probe_lockdown() returns int language sql as $$ select 1 $$`);
+  const r = await one(`select has_function_privilege('anon','public.probe_lockdown()','execute') x`);
+  await db.exec(`drop function public.probe_lockdown()`);
+  eq(r.x, false, 'new function was left open to anon');
 });
 await check('the functions the app actually calls are still callable', async () => {
   for (const fn of ['current_tier()', 'match_feed(integer)', 'looted_you()', 'looted_you_count()',

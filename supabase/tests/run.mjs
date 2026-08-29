@@ -1004,6 +1004,71 @@ await check('the messages themselves survive a block, for reports', async () => 
 });
 
 // ---------------------------------------------------------------------------
+// Friend discovery
+// ---------------------------------------------------------------------------
+
+console.log('\nFriend discovery');
+const searcher = await mkUser('searcher');
+const findme = await mkUser('findme');
+const hidden = await mkUser('hidden');
+const search = (uid, q) =>
+  asUser(uid, async () => (await db.query(`select * from search_users($1, 20)`, [q])).rows);
+
+await check('username search finds a student', async () => {
+  const rows = await search(searcher, 'findme');
+  eq(rows.length, 1);
+  eq(rows[0].id, findme);
+  eq(rows[0].relationship, 'none');
+});
+await check('search needs at least 2 characters', async () =>
+  eq((await search(searcher, 'f')).length, 0));
+await check('you appear to yourself as "self", not as a stranger', async () => {
+  const rows = await search(searcher, 'searcher');
+  eq(rows[0].relationship, 'self');
+});
+await check('Tier 0 cannot search — that would bypass the enumeration rule', async () => {
+  await db.query(`update profiles set trust_tier=0 where id=$1`, [searcher]);
+  eq((await search(searcher, 'findme')).length, 0);
+  await db.query(`update profiles set trust_tier=2 where id=$1`, [searcher]);
+});
+await check('search reports a pending request in the right direction', async () => {
+  await asUser(searcher, () => db.query(
+    `insert into friendships (requester_id, addressee_id) values ($1,$2)`, [searcher, findme]));
+  eq((await search(searcher, 'findme'))[0].relationship, 'pending_out');
+  eq((await search(findme, 'searcher'))[0].relationship, 'pending_in');
+});
+await check('both sides see the request, labelled by direction', async () => {
+  const mine = await asUser(searcher, async () => (await db.query(`select * from my_friend_requests()`)).rows);
+  const theirs = await asUser(findme, async () => (await db.query(`select * from my_friend_requests()`)).rows);
+  eq(mine.length, 1); eq(mine[0].direction, 'outgoing'); eq(mine[0].other_id, findme);
+  eq(theirs.length, 1); eq(theirs[0].direction, 'incoming'); eq(theirs[0].other_id, searcher);
+});
+await check('accepting turns it into a friendship', async () => {
+  await asUser(findme, () => db.query(
+    `update friendships set status='accepted' where addressee_id=$1 and requester_id=$2`, [findme, searcher]));
+  eq((await search(searcher, 'findme'))[0].relationship, 'friends');
+  const friends = await asUser(searcher, async () => (await db.query(`select * from my_friends()`)).rows);
+  eq(friends.length, 1); eq(friends[0].other_id, findme);
+  eq(friends[0].thread_id ?? 'null', 'null', 'thread should not exist until someone messages');
+});
+await check('the friend list picks up the thread once opened', async () => {
+  await asUser(searcher, () => db.query(`select open_dm_thread($1)`, [findme]));
+  const friends = await asUser(searcher, async () => (await db.query(`select * from my_friends()`)).rows);
+  if (!friends[0].thread_id) throw new Error('thread_id still null after opening');
+});
+await check('blocked users vanish from search and from the friend list', async () => {
+  await asUser(hidden, () => db.query(`insert into blocks (blocker_id, blocked_id) values ($1,$2)`, [hidden, searcher]));
+  eq((await search(searcher, 'hidden')).length, 0, 'blocker in search results');
+});
+await check('unverified and banned accounts are not searchable', async () => {
+  const t0 = await mkUser('lowtier', { tier: 0 });
+  const bad = await mkUser('badactor');
+  await db.query(`insert into bans (user_id,type,ends_at) values ($1,'temporary',now()+interval '5 days')`, [bad]);
+  eq((await search(searcher, 'lowtier')).length, 0, 'Tier 0 user found');
+  eq((await search(searcher, 'badactor')).length, 0, 'banned user found');
+});
+
+// ---------------------------------------------------------------------------
 // Profile enumeration
 // ---------------------------------------------------------------------------
 
@@ -1074,13 +1139,23 @@ await check('service-role-only functions stay closed to authenticated', async ()
     eq(r.x, false, fn);
   }
 });
-await check('a newly created function is closed automatically', async () => {
-  // Pins the event trigger from migration 14. If it silently stops working, the
-  // next function someone adds is exposed — which is exactly what happened once.
+await check('the sweep closes a newly created function', async () => {
+  // NOTE: pglite runs the migration-14 event trigger and Supabase does not, so a
+  // test asserting functions close *automatically* passes here and lies about
+  // production — which is exactly what happened. This tests the sweep instead,
+  // because the sweep is the mechanism that actually holds on both.
   await db.exec(`create or replace function public.probe_lockdown() returns int language sql as $$ select 1 $$`);
+  await db.exec(`grant execute on function public.probe_lockdown() to anon`);
+  await db.query(`select public.lock_client_functions()`);
   const r = await one(`select has_function_privilege('anon','public.probe_lockdown()','execute') x`);
   await db.exec(`drop function public.probe_lockdown()`);
-  eq(r.x, false, 'new function was left open to anon');
+  eq(r.x, false, 'sweep did not close the function');
+});
+await check('the sweep leaves authenticated grants intact', async () => {
+  await db.query(`select public.lock_client_functions()`);
+  for (const fn of ['current_tier()', 'search_users(text,integer)', 'my_threads()']) {
+    eq((await one(`select has_function_privilege('authenticated',$1,'execute') x`, [fn])).x, true, fn);
+  }
 });
 await check('the functions the app actually calls are still callable', async () => {
   for (const fn of ['current_tier()', 'match_feed(integer)', 'looted_you()', 'looted_you_count()',

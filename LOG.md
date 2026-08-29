@@ -15,6 +15,67 @@
 
 ---
 
+## 2026-08-29 — Friend requests and username search; the function guard was fake twice
+
+Username search, friend requests both directions, and a friends list. 11 new tests
+(169 total). The inbox now shows a request count and a "Find people" entry, and
+accepting a request opens the conversation immediately rather than leaving the user
+to hunt for it.
+
+`search_users()` returns the **relationship** alongside each person — none,
+pending_out, pending_in, friends, self — so the button says Add, Requested, Accept
+or Message instead of offering to befriend an existing friend. Doing that in the
+client would mean one query per result.
+
+Search is **Tier 1+ only**. Migration 15 stopped Tier 0 enumerating the directory;
+an unguarded search would simply have been the way around it. A test pins that.
+
+---
+
+**The important part of this entry: the function lockdown has now failed twice, and
+both times the tests said it was fine.**
+
+Postgres grants EXECUTE on every new function to PUBLIC. Two attempts to change
+that:
+
+1. **Migration 12** used `alter default privileges ... revoke execute on functions
+   from public`. That silently does nothing — `pg_default_acl` stays empty.
+2. **Migration 14** replaced it with an event trigger, wrapped in an exception
+   handler so a platform that forbids event triggers would not fail the migration.
+   **Supabase forbids them.** The handler swallowed the failure exactly as written,
+   and the migration reported success.
+
+So every function created since migration 14 — `my_threads`, `group_thread`,
+`my_match_prefs`, `search_users`, `my_friends`, `my_friend_requests` — shipped
+executable by `anon`, the key that lives inside the APK.
+
+Nothing leaked, because each one checks `auth.uid()` or `current_tier()` and returns
+empty. But that is the same "safety by remembering" this was supposed to eliminate.
+
+**Why the tests missed it:** pglite runs event triggers happily. The test
+"a newly created function is closed automatically" passed locally while being false
+in production. A test that asserts a *mechanism* rather than the *outcome on the
+real platform* is worth very little — this is the second time a green suite has
+described a guard that was not there.
+
+**Found by** calling the RPCs anonymously against the live project, which is now the
+third real problem that technique has surfaced.
+
+**The fix (migration 21)** drops the clever defaults entirely.
+`lock_client_functions()` is an explicit, idempotent sweep that revokes PUBLIC and
+`anon` across the schema while leaving `authenticated` grants alone, so it is safe
+to call after the grants in the same migration.
+
+> **Every migration that creates a function must end with**
+> `select public.lock_client_functions();`
+
+Nothing enforces that. Two attempts to automate it both failed while appearing to
+work, so the honest answer is a documented rule plus a test that checks the outcome.
+Verified live: all six previously-open functions now return `42501` to `anon`, and
+all still work for a signed-in user.
+
+---
+
 ## 2026-08-29 — Match, Looted-you and the restriction screen: every screen now real
 
 Looty Match feed with loot/pass and the daily quota, the Looted-you list with its

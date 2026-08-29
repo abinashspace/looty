@@ -36,11 +36,18 @@ export default function Chats() {
   const c = useTheme();
 
   const [threads, setThreads] = useState<Thread[]>([]);
+  const [incoming, setIncoming] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const { data } = await supabase.rpc('my_threads');
+    const [{ data }, { data: reqs }] = await Promise.all([
+      supabase.rpc('my_threads'),
+      supabase.rpc('my_friend_requests'),
+    ]);
     setThreads((data as Thread[]) ?? []);
+    setIncoming(
+      ((reqs as { direction: string }[]) ?? []).filter((r) => r.direction === 'incoming').length,
+    );
     setLoading(false);
   }, []);
 
@@ -68,7 +75,32 @@ export default function Chats() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.background }} edges={['top']}>
       <View style={styles.page}>
-        <Text style={[styles.h1, { color: c.text }]}>Chats</Text>
+        <View style={styles.titleRow}>
+          <Text style={[styles.h1, { color: c.text }]}>Chats</Text>
+          <View style={{ flex: 1 }} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Find people"
+            onPress={() => router.push('/(app)/chats/search')}
+            hitSlop={8}>
+            <Text style={{ color: c.accent, fontSize: 15, fontWeight: '600' }}>Find people</Text>
+          </Pressable>
+        </View>
+
+        {incoming > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/(app)/chats/requests')}
+            style={({ pressed }) => [
+              styles.requests,
+              { backgroundColor: c.backgroundElement, borderColor: c.border, opacity: pressed ? 0.8 : 1 },
+            ]}>
+            <Text style={{ color: c.text, fontWeight: '600' }}>
+              {incoming} friend request{incoming === 1 ? '' : 's'}
+            </Text>
+            <Text style={{ color: c.accent, fontWeight: '600' }}>View</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       {loading ? (
@@ -80,8 +112,8 @@ export default function Chats() {
           contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }}
           ListEmptyComponent={
             <Text style={{ color: c.textSecondary, lineHeight: 21 }}>
-              No conversations yet. Add a friend by username, or loot someone in Match
-              and see if they loot you back.
+              No conversations yet. Find someone by username above, or loot people in
+              Match and see who loots you back.
             </Text>
           }
           renderItem={({ item }) => (
@@ -124,6 +156,16 @@ export default function Chats() {
 
 const styles = StyleSheet.create({
   page: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 6, gap: 12 },
+  titleRow: { flexDirection: 'row', alignItems: 'center' },
+  requests: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+  },
   h1: { fontSize: 28, fontWeight: '700', letterSpacing: -0.5 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12 },
   dp: { width: 52, height: 52, borderRadius: 26 },

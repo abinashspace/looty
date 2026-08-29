@@ -65,7 +65,7 @@ document, the log, the Phase 1 database schema, and its tests.
 ### What exists right now
 
 ```
-supabase/migrations/   19 migrations. Phase 1: colleges + domain allowlist,
+supabase/migrations/   21 migrations. Phase 1: colleges + domain allowlist,
                        profiles, verifications + bans + access gate, RLS +
                        column grants. Phase 2: blocks + friendships, threads +
                        messages, reports, Phase 2 RLS. Then: college email
@@ -77,9 +77,10 @@ supabase/migrations/   19 migrations. Phase 1: colleges + domain allowlist,
                        profile-enumeration fix + group_thread(), avatars
                        storage bucket, derived onboarding_complete,
                        my_threads() + realtime publication, match filter
-                       grants + my_match_prefs()
+                       grants + my_match_prefs(), friend discovery,
+                       function lockdown sweep
 supabase/functions/    issue-college-code (deployed)
-supabase/tests/run.mjs 158 behaviour tests, run with `npm run test:db`
+supabase/tests/run.mjs 169 behaviour tests, run with `npm run test:db`
 supabase/seed.sql      sample colleges; domain list deliberately EMPTY
 mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/lib/tiers.ts     client mirror of the server tier gate — NOT security
@@ -88,7 +89,8 @@ mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/components/ui.tsx  Screen / Field / Button / Notice — the whole kit
   src/components/chat.tsx  MessageList + Composer, shared by groups and DMs
   src/app/(auth)/      sign-in, verify, college, profile-setup — all REAL
-  src/app/(app)/       groups/, chats/, match, looted, profile — all REAL
+  src/app/(app)/       groups/ (list, room), chats/ (inbox, thread, search,
+                       requests), match, looted, profile — all REAL
   src/app/banned.tsx   restriction notice + appeal form — REAL
 ```
 
@@ -102,9 +104,7 @@ The only remaining `Placeholder` is the "Supabase not configured" screen, which 
 meant to be one.
 
 **Not built yet:** Phase 6 (ads, Play Billing) and Phase 7's store half, both
-parked behind paid accounts. Google Sign-In. Friend requests and username search —
-the schema is complete but there is no UI to send or accept one, so DM threads can
-currently only come from a Connection.
+parked behind paid accounts. Google Sign-In.
 
 **Messages are text-only in the client so far.** The schema supports images in DMs
 and Connected chats (`messages.image_url`), and the spec calls for blur-by-default
@@ -121,7 +121,7 @@ Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
 
 ### Verified so far
 
-`npm run test:db` passes 158/158. `npx tsc --noEmit` is clean, and
+`npm run test:db` passes 169/169. `npx tsc --noEmit` is clean, and
 `npx expo export --platform android` produces a bundle, which proves imports
 resolve. Nothing has been run on a device or emulator.
 
@@ -140,12 +140,20 @@ every new function to PUBLIC by default — the opposite of tables, which start
 closed. So `anon` could call `looted_you()` and `match_feed()` on the live project.
 Nothing leaked, because each function checks `auth.uid()` and returned empty. But
 that made safety depend on every function remembering to check, rather than on the
-permission system. Migration 12 revoked it and re-granted only what the client calls — but its
-`alter default privileges` line silently did nothing (`pg_default_acl` stayed
-empty), so migration 13's new trigger functions were open again. Migration 14 adds
-an **event trigger** that closes every function created in `public` from then on,
-plus a sweep. A test creates a throwaway function and asserts `anon` cannot execute
-it, so this cannot regress quietly. Verified live: anon gets `42501`.
+permission system. Two attempted fixes both failed silently. Migration 12's
+`alter default privileges` does nothing (`pg_default_acl` stays empty). Migration
+14's **event trigger** works in pglite but **Supabase forbids event triggers**, and
+the exception handler meant to make that graceful swallowed the failure — so every
+function added afterwards shipped open to `anon`.
+
+**The working mechanism is `lock_client_functions()` (migration 21):** an explicit,
+idempotent sweep that revokes PUBLIC and `anon` across the schema while leaving
+`authenticated` grants alone.
+
+> **Every migration that creates a function must end with**
+> `select public.lock_client_functions();`
+> Nothing enforces this automatically. Two attempts to make it automatic both
+> failed, and both looked like they had worked.
 
 **Authenticated behaviour is now verified live too.** A real test account
 (`looty.devtest2@gmail.com`) confirms: the signup trigger creates the profile row,
@@ -172,7 +180,7 @@ banned addresses.
 ### Live infrastructure
 
 **Supabase project `zsfjwlmeeodsiwruvine`**, region `ap-south-1` (Mumbai),
-Postgres 17.6, on the free plan. All 19 migrations are deployed, plus the `issue-college-code` Edge Function. The repo is linked
+Postgres 17.6, on the free plan. All 21 migrations are deployed, plus the `issue-college-code` Edge Function. The repo is linked
 via the Supabase CLI, so `npx supabase db push` applies new migrations directly —
 it authenticates with the stored access token and does not prompt for the database
 password.

@@ -15,6 +15,33 @@
 
 ---
 
+## 2026-08-29 — CONTEXT.md and README had gone stale at the top
+
+Audit prompted by the owner asking whether the docs were actually current. The
+detailed sections were; the summaries at the top were not — which is the worse half,
+because that is what anyone reads first.
+
+Stale and now fixed:
+
+- CONTEXT.md still said **"Nothing is shipped. No app exists yet"** and listed the
+  repo as holding only the Phase 1 schema. Every screen had been built since.
+- The phase table marked Phases 2–5 as **"No UI"** and Phase 1 as "no app, no Edge
+  Functions". All wrong.
+- "Last updated" was still 2026-08-28.
+- README said **"there is no app yet"**, and its requirements list still asked for an
+  SMS/DLT provider and a vision API for ID OCR — both removed when verification
+  became college-email only — while asking for a Supabase project that exists.
+
+Verified rather than assumed: migration count (21) and test count (169) in
+CONTEXT.md were checked against the filesystem and a live test run, and both matched.
+
+**The lesson, and it rhymes with the function-guard one:** appending detail to a
+living document is easy to do while leaving its summary describing a project that no
+longer exists. Both files claim to be current — that claim needs checking, not
+trusting. Worth re-running this audit whenever a phase completes.
+
+---
+
 ## 2026-08-29 — Friend requests and username search; the function guard was fake twice
 
 Username search, friend requests both directions, and a friends list. 11 new tests

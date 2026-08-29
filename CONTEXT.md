@@ -9,7 +9,7 @@
 > also get a dated entry in [`LOG.md`](LOG.md), which is append-only and never
 > edited. CONTEXT = what is true now. LOG = how it got that way.
 >
-> Last updated: 2026-08-28
+> Last updated: 2026-08-29
 
 ---
 
@@ -48,19 +48,21 @@ your campus crush" in the store description undoes it and puts the rating back t
 
 ## 2. Current status
 
-**Nothing is shipped. No app exists yet.** As of 2026-08-28 the repo contains this
-document, the log, the Phase 1 database schema, and its tests.
+**Nothing is shipped, but the app is built.** Every screen exists and works against
+the live Supabase project. It has never been run on a physical device or emulator —
+correctness is established by tests, typechecking, a successful Android bundle, and
+direct calls against the live API.
 
 | Phase | Scope | Status |
 |---|---|---|
-| 0 | College domain list | **Not started — needs the owner**, see §7 |
-| 1 | Auth, verification, trust tiers, profile | **Schema + tests done.** No app, no Edge Functions |
-| 2 | Friends, DMs, block/report primitives | **Schema + tests done.** No UI |
-| 3 | Groups | **Schema + tests done.** No UI |
-| 4 | Looty Match | **Schema + tests done.** No UI |
-| 5 | Automatic moderation engine | **Schema + tests done.** No UI |
-| 6 | Ads + subscription | Not started |
-| 7 | Play Store requirements | Not started |
+| 0 | College domain list | **Not started — needs the owner.** Now the biggest open risk, see §7 |
+| 1 | Auth, verification, trust tiers, profile | Schema, screens and Edge Function done. **Missing: Google Sign-In, real email delivery** |
+| 2 | Friends, DMs, block/report | Done — schema, tests, inbox, threads, search, requests |
+| 3 | Groups | Done — schema, tests, room list and live chat |
+| 4 | Looty Match | Done — schema, tests, feed, quota, Looted-you paywall |
+| 5 | Automatic moderation engine | Done — schema, tests, restriction screen and appeal form |
+| 6 | Ads + subscription | **Not started — needs AdMob and Play Console** |
+| 7 | Play Store requirements | **Not started — needs Play Console.** Account deletion and notification prefs are free to build and are not done either |
 
 ### What exists right now
 

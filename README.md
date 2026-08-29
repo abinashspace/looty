@@ -8,8 +8,16 @@ For how things got this way, see [LOG.md](LOG.md).
 
 ## Status
 
-Pre-alpha. Nothing is shipped. The repo currently holds the Phase 1 database schema
-and its tests; there is no app yet.
+Pre-alpha, not shipped — but built. The Expo app has every screen working against a
+live Supabase project in Mumbai: sign-in, college-email verification, profile setup,
+group rooms, DMs, username search, friend requests, Looty Match, and the moderation
+appeal flow.
+
+It has never been run on a device. Correctness rests on 169 database tests,
+typechecking, a successful Android bundle, and direct calls against the live API.
+
+Not done: Google Sign-In, real email delivery for verification codes, image
+messages, ads and billing (Phase 6), and the Play Store requirements (Phase 7).
 
 ## Running the database tests
 
@@ -21,23 +29,42 @@ npm install
 npm run test:db
 ```
 
-They cover the domain fast path, username rules, tier promotion, ban behaviour, and
-that a client cannot promote its own trust tier or read private columns.
+They cover the domain fast path, username rules, tier promotion, ban behaviour,
+brigade unwinding, group capacity, the loot quota, and that a client cannot promote
+its own trust tier, read private columns, or execute privileged functions.
 
 ## Layout
 
 ```
+mobile/                Expo app (SDK 57, Android-only)
 supabase/migrations/   schema, applied in filename order
+supabase/functions/    Edge Functions (issue-college-code)
 supabase/tests/run.mjs behaviour tests (pglite, no Docker)
 supabase/seed.sql      local dev data — sample colleges, UNVERIFIED domains
 CONTEXT.md             current state of the project
 LOG.md                 dated history, append-only
 ```
 
-## Before this can run for real
+## Running the app
 
-Requires accounts only the project owner can create: a Supabase project **in
-`ap-south-1` (Mumbai)** — the region is fixed at creation and cannot be changed —
-plus Google OAuth credentials, an SMS/OTP provider (Indian transactional SMS needs
-DLT registration), vision API access for ID OCR and face matching, AdMob, and Google
-Play Console.
+```bash
+cd mobile && npx expo run:android
+```
+
+Needs `mobile/.env` — copy `mobile/.env.example` and fill in the Supabase URL and
+anon key.
+
+## Still needed from the project owner
+
+- **Verified college email domains** (`college_domains`). This is the biggest one:
+  with no ID-card path, a student whose college is not on the list can never get
+  past read-only. It is also the only part of the app that cannot be tested yet.
+- **A Google Cloud OAuth client** for Google Sign-In. Free.
+- **An email provider** (Resend, SES) so verification codes actually send. Free tier
+  is plenty. Without it the Edge Function logs the code instead.
+- **Google Play Console** ($25) and **AdMob**, for Phases 6 and 7. Play Console
+  imposes a 12-tester, 14-day closed test before public release, so it is worth
+  starting early.
+
+No longer needed: the SMS/DLT path and a KYC/vision vendor, both removed when
+verification became college-email only.

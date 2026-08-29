@@ -1,10 +1,208 @@
-import { Placeholder } from '@/components/placeholder';
+/**
+ * Profile setup — the last step before the app proper.
+ *
+ * Collects username, display name, course length and a photo. Only reached at
+ * Tier 2, so everyone here is already a confirmed student.
+ *
+ * Username rules are enforced in Postgres (shape, reserved list, 14-day cadence).
+ * They are mirrored here only so the user finds out before submitting; the
+ * database is the authority and its errors are surfaced verbatim when they differ.
+ */
+
+import * as ImagePicker from 'expo-image-picker';
+import { useCallback, useMemo, useState } from 'react';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { Body, Button, Field, Notice, Screen, Title } from '@/components/ui';
+import { useTheme } from '@/hooks/use-theme';
+import { useSession } from '@/lib/session';
+import { supabase } from '@/lib/supabase';
+
+const COURSES = [
+  { label: 'B.Tech / B.E.', years: 4 },
+  { label: 'B.Sc / B.Com / B.A.', years: 3 },
+  { label: 'M.Tech / M.Sc / MBA', years: 2 },
+  { label: 'MBBS', years: 5 },
+  { label: 'Other', years: 3 },
+];
+
+const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
 
 export default function ProfileSetup() {
+  const { session, refresh } = useSession();
+  const c = useTheme();
+
+  const [username, setUsername] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [courseIdx, setCourseIdx] = useState<number | null>(null);
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const usernameError = useMemo(() => {
+    if (!username) return null;
+    if (!USERNAME_RE.test(username)) {
+      return 'Lowercase letters, numbers and underscores. 3–20 characters.';
+    }
+    return null;
+  }, [username]);
+
+  const ready =
+    USERNAME_RE.test(username) && displayName.trim().length > 0 && courseIdx !== null && !!photo;
+
+  const pickPhoto = useCallback(async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      setError('Looty needs permission to open your photos.');
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!res.canceled) {
+      setPhoto(res.assets[0].uri);
+      setError(null);
+    }
+  }, []);
+
+  async function save() {
+    if (!session?.user.id || courseIdx === null || !photo) return;
+    setBusy(true);
+    setError(null);
+
+    try {
+      // Path must start with the user's own id — storage policy keys on the first
+      // folder segment, so anything else is refused.
+      const path = `${session.user.id}/dp.jpg`;
+      const blob = await (await fetch(photo)).blob();
+
+      const { error: upErr } = await supabase.storage
+        .from('avatars')
+        .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+      if (upErr) throw new Error(upErr.message);
+
+      const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
+
+      const { error: dbErr } = await supabase
+        .from('profiles')
+        .update({
+          username,
+          display_name: displayName.trim(),
+          course_years: COURSES[courseIdx].years,
+          start_year: new Date().getFullYear(),
+          dp_url: pub.publicUrl,
+        })
+        .eq('id', session.user.id);
+      if (dbErr) throw new Error(dbErr.message);
+
+      await refresh();
+    } catch (e) {
+      // Surface the database's own wording — it knows things this screen does not,
+      // like whether a username was taken a second ago.
+      setError(e instanceof Error ? e.message : 'Could not save your profile.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <Placeholder title="Set up your profile" phase="Phase 1">
-      Username, display picture and course length. Display name defaults to the
-      first name from the ID card — the full legal name is never shown to anyone.
-    </Placeholder>
+    <Screen>
+      <Title>Set up your profile</Title>
+      <Body>This is what other students see. You can change your name and photo later.</Body>
+
+      <Pressable onPress={pickPhoto} style={styles.photoRow} accessibilityRole="button">
+        <View
+          style={[
+            styles.photo,
+            { backgroundColor: c.backgroundElement, borderColor: c.border },
+          ]}>
+          {photo ? (
+            <Image source={{ uri: photo }} style={styles.photoImg} />
+          ) : (
+            <Text style={{ color: c.textSecondary, fontSize: 12 }}>Add photo</Text>
+          )}
+        </View>
+        <Text style={{ color: c.accent, fontWeight: '600' }}>
+          {photo ? 'Change photo' : 'Choose a photo'}
+        </Text>
+      </Pressable>
+
+      <Field
+        label="Username"
+        value={username}
+        onChangeText={(t) => setUsername(t.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+        autoCapitalize="none"
+        placeholder="rahul_k"
+        maxLength={20}
+        error={usernameError}
+        hint="How people find you. Changeable once every 14 days."
+        editable={!busy}
+      />
+
+      <Field
+        label="Display name"
+        value={displayName}
+        onChangeText={setDisplayName}
+        placeholder="Rahul"
+        maxLength={40}
+        editable={!busy}
+      />
+
+      <View style={{ gap: 8 }}>
+        <Text style={[styles.label, { color: c.textSecondary }]}>Course</Text>
+        <View style={styles.chips}>
+          {COURSES.map((course, i) => {
+            const on = courseIdx === i;
+            return (
+              <Pressable
+                key={course.label}
+                onPress={() => setCourseIdx(i)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+                style={[
+                  styles.chip,
+                  {
+                    backgroundColor: on ? c.accent : c.backgroundElement,
+                    borderColor: on ? 'transparent' : c.border,
+                  },
+                ]}>
+                <Text style={{ color: on ? c.accentText : c.text, fontSize: 14 }}>
+                  {course.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <Text style={[styles.hint, { color: c.textSecondary }]}>
+          Used to work out when you graduate. Alumni keep their account — the profile
+          just shows a badge.
+        </Text>
+      </View>
+
+      {error ? <Notice tone="error">{error}</Notice> : null}
+
+      <Button label="Finish" onPress={save} loading={busy} disabled={!ready} />
+    </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  photoRow: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 4 },
+  photo: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  photoImg: { width: '100%', height: '100%' },
+  label: { fontSize: 13, fontWeight: '600' },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9 },
+  hint: { fontSize: 13, lineHeight: 18 },
+});

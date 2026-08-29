@@ -31,6 +31,21 @@ await db.exec(`
   create or replace function auth.uid() returns uuid
     language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   create role anon; create role authenticated; create role service_role;
+
+  -- Supabase's storage schema, stubbed just enough for the avatars migration to
+  -- run. Enough to catch SQL and policy-shape errors; not a real storage test.
+  create schema if not exists storage;
+  create table storage.buckets (
+    id text primary key, name text, public boolean default false,
+    file_size_limit bigint, allowed_mime_types text[]
+  );
+  create table storage.objects (
+    id uuid primary key default gen_random_uuid(),
+    bucket_id text, name text, owner uuid
+  );
+  alter table storage.objects enable row level security;
+  create or replace function storage.foldername(p_name text) returns text[]
+    language sql immutable as $$ select string_to_array(p_name, '/') $$;
 `);
 
 // pglite attaches the whole bundled module to thrown errors, so an unhandled one
@@ -628,10 +643,14 @@ const otherCollege = (await db.query(
 
 async function mkUser(name, { tier = 2, collegeId = college.id, gender = 'woman' } = {}) {
   const { rows: [u] } = await db.query(`insert into auth.users (email) values ($1) returning id`, [`${name}@iitb.ac.in`]);
+  // onboarding_complete is derived by trigger, so the fixture has to supply every
+  // field a real profile would have rather than just asserting the flag.
   await db.query(
-    `update profiles set username=$2, trust_tier=$3, college_id=$4, gender=$5, dp_url='x',
-       onboarding_complete=true, created_at=now()-interval '30 days' where id=$1`,
-    [u.id, name + '_m', tier, collegeId, gender]);
+    `update profiles set username=$2, trust_tier=$3, college_id=$4, gender=$5,
+       dp_url='https://example.test/dp.jpg', display_name=$6,
+       course_years=4, start_year=extract(year from now())::smallint,
+       created_at=now()-interval '30 days' where id=$1`,
+    [u.id, name + '_m', tier, collegeId, gender, name]);
   return u.id;
 }
 const mia = await mkUser('mia');

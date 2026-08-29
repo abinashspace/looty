@@ -15,6 +15,56 @@
 
 ---
 
+## 2026-08-29 — The auth flow is real: sign-in, college verification, profile setup
+
+First actual screens. Sign in / create account, confirm a college email by 6-digit
+code, profile setup with photo upload, and your own profile with its tier badge.
+Groups, Match, Looted and Chats are still placeholders.
+
+**Supporting pieces:**
+
+- `src/components/ui.tsx` — Screen, Field, Button, LinkButton, Notice. Deliberately
+  plain; a text-first chat app earns nothing from ornament.
+- Theme gained `accent`, `border`, `danger` — the template palette had no accent at
+  all, so nothing could be a primary action.
+- **`avatars` storage bucket** (migration 16), public-read because DPs appear on
+  Match cards to people you are not connected to. Writes are keyed on the first
+  path segment being the uploader's own user id, so nobody can write into another
+  user's folder. 2 MB cap, and JPEG/PNG/WebP only — **no SVG**, which can carry
+  script.
+- **`onboarding_complete` is derived by trigger** (migration 17), not written by the
+  client. It gates routing, so a client able to set it could skip profile setup
+  entirely. It now computes from the fields that actually constitute a profile.
+- **`issue-college-code` Edge Function deployed.** Runs under service_role because
+  the raw code must reach the mailbox and nowhere else — only a salted sha256 is
+  stored, and the code is never returned to the caller. Uses `crypto.getRandomValues`
+  rather than `Math.random`; this is a credential. Rate limited to 3 per user per
+  hour so it cannot be used to mail-bomb a college address. Sends via Resend when
+  `RESEND_API_KEY` is set, otherwise logs the code — and refuses to do that when
+  `LOOTY_ENV=production`.
+
+**Verified live:** the function returns 401 unauthenticated, 422 for an unrecognised
+college domain, 400 for a malformed address. `tsc` clean, Android bundle builds,
+150/150 database tests.
+
+**Not verified, and honestly cannot be yet:** the happy path. It needs a real
+verified college domain in `college_domains`, which is Phase 0 and cannot be done
+from a keyboard. Everything around it is covered — `confirm_college_email` has nine
+tests for codes, expiry, lockout, reuse and banned addresses.
+
+**Two fixture breakages worth noting**, both caused by the new trigger and both
+caught by *positive* assertions rather than negative ones:
+
+- `mkUser` set `onboarding_complete = true` directly. Once the trigger derived it
+  from real fields, every fixture profile became incomplete and dropped out of
+  `match_feed`. Only "all_india scope widens the feed" caught it — the negative
+  assertions all passed happily against an empty feed. A test that only asserts
+  absence proves very little.
+- The fixture then reused `$2` for both `username` (citext) and `display_name`
+  (text), which Postgres rejects as "inconsistent types deduced for parameter".
+
+---
+
 ## 2026-08-29 — Live auth verified; profile-enumeration hole found and closed
 
 Enabled email/password auth for development so the UI can be built and tested

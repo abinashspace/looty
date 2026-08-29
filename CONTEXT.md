@@ -65,7 +65,7 @@ document, the log, the Phase 1 database schema, and its tests.
 ### What exists right now
 
 ```
-supabase/migrations/   15 migrations. Phase 1: colleges + domain allowlist,
+supabase/migrations/   17 migrations. Phase 1: colleges + domain allowlist,
                        profiles, verifications + bans + access gate, RLS +
                        column grants. Phase 2: blocks + friendships, threads +
                        messages, reports, Phase 2 RLS. Then: college email
@@ -74,19 +74,27 @@ supabase/migrations/   15 migrations. Phase 1: colleges + domain allowlist,
                        Phase 4: loots, connections, subscriptions, feed +
                        quota. Phase 5: ban engine, brigade unwinding,
                        appeals. Then: function EXECUTE lockdown (x2),
-                       profile-enumeration fix + group_thread()
+                       profile-enumeration fix + group_thread(), avatars
+                       storage bucket, derived onboarding_complete
+supabase/functions/    issue-college-code (deployed)
 supabase/tests/run.mjs 150 behaviour tests, run with `npm run test:db`
 supabase/seed.sql      sample colleges; domain list deliberately EMPTY
 mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/lib/tiers.ts     client mirror of the server tier gate — NOT security
   src/lib/session.tsx  auth session + profile + signup step resolution
   src/lib/supabase.ts  client; degrades to a setup screen when .env is absent
-  src/app/(auth)/      sign-in, verify (college email), college, profile-setup
-  src/app/(app)/       tabs: groups, match, looted, chats, profile
+  src/components/ui.tsx  Screen / Field / Button / Notice — the whole kit
+  src/app/(auth)/      sign-in, verify, college, profile-setup — all REAL
+  src/app/(app)/       profile REAL; groups, match, looted, chats still stubs
 ```
 
-Every screen under `src/app` is a **placeholder** naming the phase that will fill it
-in. The navigation shell, tier gating and routing are real; nothing behind them is.
+The auth flow is built: sign in or create an account, confirm a college email by
+6-digit code, set up a profile with a photo, and see your own profile with its tier
+badge. **Groups, Match, Looted and Chats are still placeholders.**
+
+**Development auth is email/password.** Google Sign-In is the intended production
+entry point and drops in beside it — nothing downstream looks at how you
+authenticated.
 
 The database tests run against an in-process Postgres (pglite), so they need **no
 Docker and no Supabase project**. They are not a substitute for testing against real
@@ -130,14 +138,22 @@ could `select * from profiles` and dump the whole student directory. See §7.
 
 ### Still missing from Phase 1
 
-Google Sign-In, and the Edge Function that issues college-email codes (generates
-the code, stores its hash, sends the mail). Both blocked on credentials — see
-below. Everything else in Phase 1 is done.
+Google Sign-In (needs a free Google Cloud OAuth client) and real email delivery.
+The `issue-college-code` function is deployed and working; without `RESEND_API_KEY`
+it logs the code instead of sending it, and refuses to do that when
+`LOOTY_ENV=production`.
+
+**The happy path cannot be fully verified yet**, because it needs a real verified
+college domain in `college_domains` — which is Phase 0, and cannot be done from a
+keyboard. Everything around it is verified: the function returns 401
+unauthenticated, 422 for an unrecognised domain, 400 for a malformed address, and
+`confirm_college_email` has nine tests covering codes, expiry, lockout, reuse and
+banned addresses.
 
 ### Live infrastructure
 
 **Supabase project `zsfjwlmeeodsiwruvine`**, region `ap-south-1` (Mumbai),
-Postgres 17.6, on the free plan. All 15 migrations are deployed. The repo is linked
+Postgres 17.6, on the free plan. All 17 migrations are deployed, plus the `issue-college-code` Edge Function. The repo is linked
 via the Supabase CLI, so `npx supabase db push` applies new migrations directly —
 it authenticates with the stored access token and does not prompt for the database
 password.

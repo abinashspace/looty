@@ -190,6 +190,27 @@ password.
 `mobile/.env` holds the project URL and anon key. It is gitignored; recreate it
 from `mobile/.env.example` if it goes missing.
 
+### Working on this machine
+
+Notes that cost time to rediscover:
+
+- **PowerShell blocks `npx.ps1`** ("running scripts is disabled on this system").
+  Use `npx.cmd`, or Command Prompt, or Git Bash. Do not change the execution policy
+  for this.
+- **Docker is not installed.** `supabase db push`, `functions deploy` and
+  `config push` all work without it. `supabase db dump` and `db diff` do not, so
+  schema diffing against the remote is unavailable — the migrations are the record.
+- **`supabase db push` never prompts for the database password.** The CLI is linked
+  and authenticates with the stored access token; linking used `--password ""`.
+- **The database tests need no network at all** — pglite runs the migrations
+  in-process. But see the warning above: pglite is more permissive than Supabase in
+  at least one way that mattered (event triggers), so a green suite is not proof
+  about production.
+- **A dev test account exists**, `looty.devtest2@gmail.com`, used for the live
+  authenticated checks. Its password is deliberately not in the repo; reset it from
+  the Supabase dashboard (Authentication → Users) if needed. Email confirmation is
+  off, so new test accounts can be created and used immediately.
+
 ### Blocked on the user (cannot proceed without these)
 
 These require accounts and credentials that only the project owner can create:

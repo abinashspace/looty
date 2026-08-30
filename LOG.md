@@ -15,6 +15,90 @@
 
 ---
 
+## 2026-08-30 — Supabase does NOT forbid event triggers; profile photos cut ~10x
+
+Two unrelated things, one of which overturns a documented cause.
+
+**The event-trigger post-mortem is wrong.** CONTEXT.md §2, the 2026-08-29 entry
+below, and migration 21's header all say the same thing: that migration 14's event
+trigger failed because *Supabase forbids event triggers*, and that its exception
+handler swallowed the failure. Queried live:
+
+| name | status | owner | event | tags |
+|---|---|---|---|---|
+| `lock_functions_on_create` | **enabled** | postgres | ddl_command_end | CREATE FUNCTION |
+| `ensure_rls` | **enabled** | postgres | ddl_command_end | CREATE TABLE… |
+
+Both were created by our own migrations and both are running on the production
+database right now. Supabase permitted them. The handler never fired.
+
+So the six functions that shipped executable by `anon` were open for **some other
+reason, still unknown**. Migration 21's sweep has since revoked and re-granted
+everything, which erased the evidence either way — the current ACLs look identical
+whether the trigger works or not. Settling it needs the empirical test: create a
+throwaway function on live and probe it as `anon`.
+
+**Deliberately not "fixed" in the docs yet.** The stated cause is disproven; the
+real one is not established. Replacing one confident wrong explanation with another
+is exactly how this file earned its warning about guards that are imaginary. What
+can be said now is only that the reason on record is false.
+
+This does not change the standing rule — every migration that creates a function
+must still end with `select public.lock_client_functions();`. If the trigger does
+work, that rule is belt-and-braces rather than the only thing holding.
+
+**Live security state audited read-only, and it is clean.** First time this has been
+checked at depth on real Postgres rather than pglite: 22/22 tables have RLS, zero
+readable by `anon`, zero of 49 app functions executable by `anon`, `college_email` /
+`full_name` / `phone_hash` / `code_hash` / `code_salt` unreadable by `authenticated`,
+`trust_tier` unwritable. `banned_identities`, `blocked_terms` and `reserved_usernames`
+have RLS on with no policies at all — deny-all, service-role only, as intended.
+Realtime publishes exactly `messages` and `group_messages`.
+
+**Doc drift found, not yet fixed:** CONTEXT §2 says 21 tables, live has 22. §6 lists
+`push_tokens` and `notification_prefs`, neither of which exists; omits
+`reserved_usernames`, which does; and lists seven tables twice. Also
+`sync_onboarding_complete` carries an EXECUTE grant to `authenticated` that no other
+trigger function has — harmless, since a trigger function cannot be invoked
+directly, but it is the one grant that breaks the pattern.
+
+**Fixed:** §7 still said the repo was public and advised making it private. It was
+switched to private on 2026-08-28.
+
+---
+
+**Profile photos are now downscaled to 512px before upload** — roughly 600 KB down
+to 50 KB. `expo-image-manipulator` added; the resize happens at pick time, so the
+preview shows what will actually be uploaded and Finish stays instant. It only ever
+shrinks, and falls back to the original if manipulation fails, since a resize
+hiccup should not be what stops someone finishing signup.
+
+**Why now, before any real users exist.** The picker was handing back a
+full-camera-resolution square at `quality: 0.8` — 300 KB to 1.5 MB, squeaking under
+the bucket's 2 MB cap — and every Looty Match card downloads one. Free-tier egress
+is 5 GB/month, so at those sizes a *single* user scrolling 50 cards a day consumes
+about 900 MB a month. The free tier would have run out of bandwidth at roughly six
+active users, and the number that looks reassuring on the pricing page (50,000
+monthly active users) is the one limit this app would never reach.
+
+Doing it later means migrating everyone's existing photo instead of changing four
+lines. Order the free tier actually breaks in: egress, then Realtime messages
+(2M/month — one busy 1024-member room and its fanout is most of that), then 200
+concurrent Realtime connections, then 1 GB storage. Free also has **no backups**,
+which is disqualifying for live student data regardless of capacity.
+
+**Verified:** `tsc --noEmit` clean, `expo export --platform android` bundles.
+Still never run on a device.
+
+**Not done, and blocked:** the live Tier 2 verification this session set out to do —
+seed a test college, take an account to Tier 2, and exercise groups, DMs, friend
+requests and Match against real Supabase. Every live check to date has been as
+`anon` or Tier 0, so the entire verified-student surface remains pglite-only. The
+write to the live database was refused by the tooling; nothing was seeded and no
+test rows exist.
+
+---
+
 ## 2026-08-29 — CONTEXT.md and README had gone stale at the top
 
 Audit prompted by the owner asking whether the docs were actually current. The

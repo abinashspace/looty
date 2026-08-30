@@ -584,9 +584,10 @@ subdomain, and roughly what share of students have one. A wrong entry is worse t
 a missing one — a missing domain merely locks a student out, a wrong one hands full
 access to whoever holds an address on it.
 
-**This repo is public.** The moderation thresholds and anti-brigade rules in §3.5
-are therefore readable by anyone, which makes them easier to game. Consider making
-the repo private before launch.
+**The repo is private**, which is what keeps the moderation thresholds and
+anti-brigade rules in §3.5 out of reach — published, they would read as a manual for
+gaming the report system. It was switched from public on 2026-08-28. Keep it that
+way through launch.
 
 ### Assumptions never explicitly confirmed
 

@@ -59,7 +59,15 @@ function RootNavigator() {
     // them permanently, so they are free to browse groups read-only.
     if (step === 'verifyCollege' && group === '(app)') return;
 
-    if (group !== '(auth)') router.replace(STEP_ROUTE[step]);
+    // Compare against the step's own route, not merely its group. Guarding on
+    // `group !== '(auth)'` looks like loop protection but also blocks every move
+    // *between* auth screens — which is the one move signup depends on. Creating
+    // an account leaves you on sign-in with a session and a Tier 0 profile, so
+    // the redirect to /verify never fired and signup could not be completed at
+    // all. Matching on the full route still cannot loop, because the only
+    // redirect it issues is to a route it has just established we are not on.
+    const target = STEP_ROUTE[step];
+    if (`/${segments.join('/')}` !== target) router.replace(target);
   }, [loading, step, isBanned, segments, router]);
 
   if (loading) {

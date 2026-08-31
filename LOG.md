@@ -15,6 +15,57 @@
 
 ---
 
+## 2026-08-30 — The app rendered for the first time, and signup was broken
+
+Ran the UI for the first time in the project's history. The phone could not reach
+the dev server — LAN blocked (the router isolates clients) and ngrok would not open
+a tunnel from that network — so it was run in a browser via `react-native-web`,
+with `platforms` temporarily widened in `app.json` and reverted afterwards.
+
+**Within five minutes it exposed a bug that made signup impossible for everyone.**
+
+The root layout's routing effect ended with:
+
+```js
+if (group !== '(auth)') router.replace(STEP_ROUTE[step]);
+```
+
+Creating an account leaves you inside the `(auth)` group, on `sign-in`, holding a
+valid session and a Tier 0 profile — so `step` becomes `verifyCollege` and the
+redirect to `/verify` **never fires**. The account is created and the user is left
+staring at the screen they started on. Trying again then genuinely does return
+"User already registered", which reads as the first attempt having failed when in
+fact it succeeded. Confirmed against the live database: `auth.users` went from 2 to
+4 during the attempts.
+
+The guard was written as loop protection and is doing that job far too broadly — it
+blocks every move *between* auth screens, and signup is exactly such a move. It now
+compares the full route instead of the group. It still cannot loop, because the only
+redirect it issues is to a route it has just established we are not on.
+
+**A second bug made the first one much harder to read.** `sign-in.tsx` cleared its
+error only on submit and on toggling mode — never when a field changed. So the
+stale "User already registered" sat over a freshly typed address and looked like a
+verdict on the new one. Errors now clear on edit.
+
+**The point worth keeping.** 169 tests green, typecheck clean, Android bundle
+building — and nobody could create an account. No database test could have caught
+it: the schema behaved perfectly throughout, and the bug lives entirely in the
+client's routing. This is the same lesson as the two fake security guards, pointed
+at the UI instead of the schema: *the thing you have not executed does not work,
+whatever the suite says.*
+
+**Also corrected in CONTEXT.md:** the §6 data model listed seven tables twice, named
+two that have never been built (`push_tokens`, `notification_prefs`), and omitted
+`reserved_usernames`, which does exist. It now lists all 22 live tables, verified
+against the database. §2's "21 tables" was also wrong.
+
+**Verified:** `tsc --noEmit` clean; the fix confirmed in the browser by signing in
+and landing on `/verify`, a screen that had been unreachable. **Still not verified on
+Android at all** — `react-native-web` is a preview, not the target.
+
+---
+
 ## 2026-08-30 — Supabase does NOT forbid event triggers; profile photos cut ~10x
 
 Two unrelated things, one of which overturns a documented cause.

@@ -49,9 +49,16 @@ your campus crush" in the store description undoes it and puts the rating back t
 ## 2. Current status
 
 **Nothing is shipped, but the app is built.** Every screen exists and works against
-the live Supabase project. It has never been run on a physical device or emulator —
-correctness is established by tests, typechecking, a successful Android bundle, and
-direct calls against the live API.
+the live Supabase project. **It has still never been run on Android** — not on a
+device, not on an emulator. Correctness rests on tests, typechecking, a successful
+Android bundle, and direct calls against the live API.
+
+**It has been run once in a browser**, on 2026-08-30, via `react-native-web` as a
+stopgap when the phone could not reach the dev server. That is not a substitute for
+Android and proves nothing about the native paths — but it took five minutes to find
+a bug that had made **signup impossible for every user**, which the whole test suite
+had passed straight over. See LOG.md, 2026-08-30. Treat "runs on Android" as the
+single largest piece of unverified ground on this project.
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -125,14 +132,15 @@ Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
 
 `npm run test:db` passes 169/169. `npx tsc --noEmit` is clean, and
 `npx expo export --platform android` produces a bundle, which proves imports
-resolve. Nothing has been run on a device or emulator.
+resolve. Nothing has been run on a device or emulator; the browser run noted above
+is the only time the UI has rendered at all.
 
 The Phase 2 tests run as an actual `authenticated` role with a JWT claim set, so
 RLS genuinely applies to them. Phase 1 tests run as superuser and therefore check
 grant *metadata* rather than live enforcement — a weaker guarantee, worth knowing
 when reading them.
 
-**Against the live database:** all 21 tables exist, and every one of them refuses
+**Against the live database:** all 22 tables exist, and every one of them refuses
 the `anon` role outright (`42501 permission denied`). That matters more than it
 looks — the anon key ships inside the APK and anyone can extract it in a minute, so
 "anon can read nothing" is the property that keeps the whole database private.
@@ -144,9 +152,18 @@ Nothing leaked, because each function checks `auth.uid()` and returned empty. Bu
 that made safety depend on every function remembering to check, rather than on the
 permission system. Two attempted fixes both failed silently. Migration 12's
 `alter default privileges` does nothing (`pg_default_acl` stays empty). Migration
-14's **event trigger** works in pglite but **Supabase forbids event triggers**, and
-the exception handler meant to make that graceful swallowed the failure — so every
-function added afterwards shipped open to `anon`.
+14 replaced it with an **event trigger**, and every function added afterwards still
+shipped open to `anon`.
+
+> **Why migration 14's event trigger failed is UNKNOWN, and the answer previously
+> recorded here was wrong.** This file, LOG.md and migration 21's header all used to
+> say Supabase forbids event triggers and that an exception handler swallowed the
+> failure. Checked against the live database on 2026-08-30: **the event trigger
+> `lock_functions_on_create` exists, is enabled, and is running**, as is a second one
+> (`ensure_rls`) from migration 4. Supabase permitted both. Migration 21's sweep has
+> since revoked and re-granted everything, so the current ACLs look identical whether
+> the trigger works or not and the evidence is gone. Settling it needs the empirical
+> test: create a throwaway function on the live project and call it as `anon`.
 
 **The working mechanism is `lock_client_functions()` (migration 21):** an explicit,
 idempotent sweep that revokes PUBLIC and `anon` across the schema while leaving
@@ -484,43 +501,42 @@ Full schema lives in `supabase/migrations/`. Core tables:
 ```
 colleges            id, name, city, state, status
 college_domains     id, college_id, domain          -- exact strings, no wildcards
-college_requests    id, name, domain, requester, status
+college_requests    id, requester_id, college_name, city, domain, status
 profiles            id, username, display_name, dp_url, college_id,
                     college_email(private, unique — the ban anchor),
                     course_years, start_year, end_year, gender,
-                    trust_tier(0|2; 1 dormant)
+                    trust_tier(0|2; 1 dormant), onboarding_complete(derived),
+                    match_scope, match_same_gender_only,
                     full_name / phone_hash / phone_verified_at — dormant, §4.5
+reserved_usernames  username    -- looty, admin, support, official
 verifications       id, user_id, method, status, claimed_college_id,
                     ocr_*, face_match_score, image paths, images_deleted_at
+email_verifications user_id, email, college_id, code_salt, code_hash,
+                    expires_at, attempts, consumed_at
 friendships         id, requester_id, addressee_id, status
 blocks              blocker_id, blocked_id
-loots               id, actor_id, target_id, action(loot|pass)   -- unique pair
-connections         id, user_a, user_b, status(active|ended)
-threads             id, type(dm|connection), participants
+threads             id, type(dm|connection), user_a, user_b  -- canonical order
 messages            id, thread_id, sender_id, body, image_url, created_at
-groups              id, category, room_number, member_count
-group_members       group_id, user_id
-reports             id, reporter_id, target_id, context, reason
-                    -- unique (reporter_id, target_id)
-bans                id, user_id, type, starts_at, ends_at
-appeals             id, ban_id, user_id, text, status
 groups              id, category, room_number, member_count, capacity, name
 group_members       group_id, user_id, category  -- unique(user_id, category)
 group_messages      id, group_id, sender_id, body  -- NO image column, by design
 blocked_terms       term                          -- word filter, ships empty
-loots               actor_id, target_id, action(loot|pass)  -- unique per pair
-connections         user_a, user_b, status  -- from mutual loots only
-subscriptions       user_id, status, current_period_end
-appeals             ban_id (unique), user_id, body, status
-bans                + lifted_at, lift_reason, issued_by
-reports             + resolved_by_ban_id  -- which ban a report was spent on
-banned_identities   hash, kind  -- ban anchor; survives account deletion
-email_verifications user_id, email, college_id, code_salt, code_hash,
-                    expires_at, attempts, consumed_at
+loots               id, actor_id, target_id, action(loot|pass)  -- unique per pair
+connections         id, user_a, user_b, status(active|ended)  -- mutual loots only
 subscriptions       user_id, status, product_id, current_period_end
-push_tokens         user_id, token
-notification_prefs  user_id, loots, connections, dms, requests, groups
+reports             id, reporter_id, target_id, context, reason,
+                    resolved_by_ban_id  -- which ban a report was spent on
+                    -- unique (reporter_id, target_id)
+bans                id, user_id, type, starts_at, ends_at,
+                    lifted_at, lift_reason, issued_by
+appeals             id, ban_id(unique), user_id, body, status
+banned_identities   hash, kind  -- ban anchor; survives account deletion
 ```
+
+That is **all 22 tables**, verified against the live database on 2026-08-30. Earlier
+versions of this section listed several tables twice and named two that do not
+exist: **`push_tokens` and `notification_prefs` have never been built.** They belong
+to Phase 7 along with account deletion, and none of it is started.
 
 ### The rule that matters most
 

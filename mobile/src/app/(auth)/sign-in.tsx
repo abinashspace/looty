@@ -28,6 +28,17 @@ export default function SignIn() {
 
   const canSubmit = email.includes('@') && password.length >= 8;
 
+  // Clear the last failure as soon as the user changes anything. Without this a
+  // stale "User already registered" sits over a freshly typed address and reads
+  // as a verdict on the new one.
+  function edit(set: (v: string) => void) {
+    return (v: string) => {
+      set(v);
+      setError(null);
+      setNotice(null);
+    };
+  }
+
   async function submit() {
     setBusy(true);
     setError(null);
@@ -63,7 +74,7 @@ export default function SignIn() {
       <Field
         label="Email"
         value={email}
-        onChangeText={setEmail}
+        onChangeText={edit(setEmail)}
         autoCapitalize="none"
         autoComplete="email"
         keyboardType="email-address"
@@ -73,7 +84,7 @@ export default function SignIn() {
       <Field
         label="Password"
         value={password}
-        onChangeText={setPassword}
+        onChangeText={edit(setPassword)}
         secureTextEntry
         autoCapitalize="none"
         autoComplete={mode === 'signIn' ? 'current-password' : 'new-password'}

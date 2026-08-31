@@ -15,6 +15,26 @@
 
 ---
 
+## 2026-08-31 — The app ran on Android for the first time
+
+Realme RMX3771 over USB. Expo Go 57.0.9 sideloaded (Play Store copy is the wrong
+SDK). Metro served the bundle; the owner confirmed the app came up.
+
+Wi-Fi is still unusable — the router isolates clients — so this is USB-only:
+`adb reverse tcp:8081 tcp:8081` and `exp://127.0.0.1:8081`. `--localhost` on
+`expo start` binds IPv6 `::1` only; `adb reverse` talks IPv4 `127.0.0.1`, which
+produced **Failed to download remote update** on first open. Restarting Metro
+without `--localhost` fixed it.
+
+Native paths still not walked: image picker, 512px downscale, realtime, screenshot
+handling. First render only.
+
+Platform-tools installed via `winget install Google.PlatformTools`. No Android
+Studio. A junction at `%LOCALAPPDATA%\Android\Sdk\platform-tools` exists so Expo
+can find `adb`. Restart steps are in CONTEXT.md §2.
+
+---
+
 ## 2026-08-31 — Profile setup was impossible: the username trigger ran as the caller
 
 Took two real accounts to Tier 2 on live and PATCHed `profiles` as `authenticated`

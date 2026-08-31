@@ -49,18 +49,14 @@ your campus crush" in the store description undoes it and puts the rating back t
 ## 2. Current status
 
 **Nothing is shipped, but the app is built.** Every screen exists and works against
-the live Supabase project. **It has still never been run on Android** — not on a
-device, not on an emulator. This machine has no Android SDK. Correctness now also
-rests on direct calls against the live API as a real Tier 2 user, not only as
-`anon` / Tier 0.
+the live Supabase project. **It has been run on a real Android phone** (Realme
+RMX3771, 2026-08-31) via USB + Expo Go 57. That is the first native render in the
+project's history. Image picker, photo downscale, realtime and screenshot handling
+have still not been walked through on device.
 
-**It has been run once in a browser**, on 2026-08-30, via `react-native-web` as a
-stopgap when the phone could not reach the dev server. That is not a substitute for
-Android and proves nothing about the native paths — but it took five minutes to find
-a bug that had made **signup impossible for every user**, which the whole test suite
-had passed straight over. See LOG.md, 2026-08-30. Treat "runs on Android" as the
-single largest piece of unverified *native* ground. The verified-student API
-surface is no longer in that category; it was exercised live on 2026-08-31.
+**It has also been run once in a browser**, on 2026-08-30, via `react-native-web`.
+That found the signup-routing bug. The verified-student API surface was exercised
+live as Tier 2 on 2026-08-31.
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -134,10 +130,8 @@ Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
 
 ### Verified so far
 
-`npm run test:db` passes 178/178. `npx tsc --noEmit` is clean. Nothing has been
-run on a device or emulator; the browser run noted above is the only time the UI
-has rendered at all. This machine has no Android SDK (`ANDROID_HOME` unset, no
-`adb`).
+`npm run test:db` passes 178/178. `npx tsc --noEmit` is clean. The UI has rendered
+on a real Android device (2026-08-31) and once in a browser (2026-08-30).
 
 The Phase 2 tests run as an actual `authenticated` role with a JWT claim set, so
 RLS genuinely applies to them. Phase 1 tests run as superuser and therefore check
@@ -259,9 +253,22 @@ Notes that cost time to rediscover:
   authenticated checks. Its password is deliberately not in the repo; reset it from
   the Supabase dashboard (Authentication → Users) if needed. Email confirmation is
   off, so new test accounts can be created and used immediately.
-- **No Android SDK on this machine.** `ANDROID_HOME` / `ANDROID_SDK_ROOT` unset,
-  no `adb`. USB with platform-tools is still the reliable route to a device; it
-  has not been installed.
+- **Android on this machine, as of 2026-08-31.** No full Android Studio SDK.
+  Platform-tools only, via winget (`Google.PlatformTools`). `adb` lives at
+  `C:\Users\DELL\AppData\Local\Microsoft\WinGet\Packages\Google.PlatformTools_Microsoft.Winget.Source_8wekyb3d8bbwe\platform-tools\adb.exe`
+  and is on the user PATH (new shells pick it up; this agent's shell often does
+  not — prepend that folder). A junction exists at
+  `%LOCALAPPDATA%\Android\Sdk\platform-tools` so Expo can find `adb`.
+- **Phone:** Realme RMX3771, serial `7HG6IRAEKNWG4L5D`. USB debugging on. Expo Go
+  **57.0.9** was sideloaded (`adb install`); do not rely on Play Store Expo Go
+  matching SDK 57. Keep the USB cable in — the router isolates Wi-Fi clients.
+- **Start the app on the phone:**
+  1. Plug in, `adb devices` shows `device`
+  2. `adb reverse tcp:8081 tcp:8081`
+  3. From `mobile/`: `npx.cmd expo start --port 8081` (do **not** pass
+     `--localhost` — that binds IPv6 `::1` only, and `adb reverse` talks IPv4
+     `127.0.0.1`, so the phone gets "Failed to download remote update")
+  4. `adb shell am start -a android.intent.action.VIEW -d "exp://127.0.0.1:8081" -p host.exp.exponent`
 - **`npx supabase db query --linked` is how you run SQL on live.** It is postgres,
   so it bypasses RLS. That is the right tool for probes and the wrong tool for
   claiming a client can do something — always follow a write with the same call

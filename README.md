@@ -13,9 +13,10 @@ live Supabase project in Mumbai: sign-in, college-email verification, profile se
 group rooms, DMs, username search, friend requests, Looty Match, and the moderation
 appeal flow.
 
-It has never been run on a device. Correctness rests on 178 database tests,
-typechecking, and direct calls against the live API — including as a real Tier 2
-user (groups, DMs, friends, Match). A green suite is not proof on this project.
+It has been run on a real Android phone (USB + Expo Go 57). Correctness also
+rests on 178 database tests, typechecking, and direct calls against the live API
+— including as a real Tier 2 user (groups, DMs, friends, Match). A green suite is
+not proof on this project.
 
 Not done: Google Sign-In, real email delivery for verification codes, image
 messages, ads and billing (Phase 6), and the Play Store listing. Account deletion

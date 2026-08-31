@@ -14,6 +14,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -121,11 +122,16 @@ export function Button({
   onPress: () => void;
   loading?: boolean;
   disabled?: boolean;
-  variant?: 'primary' | 'secondary';
+  variant?: 'primary' | 'secondary' | 'danger';
 }) {
   const c = useTheme();
   const off = disabled || loading;
-  const primary = variant === 'primary';
+  const tone =
+    variant === 'danger' ? 'danger' : variant === 'primary' ? 'primary' : 'secondary';
+  const background =
+    tone === 'primary' ? c.accent : tone === 'danger' ? c.danger : c.backgroundElement;
+  const fg = tone === 'secondary' ? c.text : c.accentText;
+  const border = tone === 'secondary' ? c.border : 'transparent';
 
   return (
     <Pressable
@@ -135,17 +141,15 @@ export function Button({
       style={({ pressed }) => [
         styles.button,
         {
-          backgroundColor: primary ? c.accent : c.backgroundElement,
-          borderColor: primary ? 'transparent' : c.border,
+          backgroundColor: background,
+          borderColor: border,
           opacity: off ? 0.5 : pressed ? 0.85 : 1,
         },
       ]}>
       {loading ? (
-        <ActivityIndicator color={primary ? c.accentText : c.text} />
+        <ActivityIndicator color={fg} />
       ) : (
-        <Text style={[styles.buttonText, { color: primary ? c.accentText : c.text }]}>
-          {label}
-        </Text>
+        <Text style={[styles.buttonText, { color: fg }]}>{label}</Text>
       )}
     </Pressable>
   );
@@ -161,6 +165,37 @@ export function LinkButton({ label, onPress }: { label: string; onPress: () => v
 }
 
 // ---------------------------------------------------------------------------
+
+export function Toggle({
+  label,
+  hint,
+  value,
+  onValueChange,
+  disabled = false,
+}: {
+  label: string;
+  hint?: string;
+  value: boolean;
+  onValueChange: (next: boolean) => void;
+  disabled?: boolean;
+}) {
+  const c = useTheme();
+  return (
+    <View style={styles.toggleRow}>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={[styles.label, { color: c.text }]}>{label}</Text>
+        {hint ? <Text style={[styles.hint, { color: c.textSecondary }]}>{hint}</Text> : null}
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        disabled={disabled}
+        trackColor={{ true: c.accent, false: c.border }}
+        thumbColor={c.background}
+      />
+    </View>
+  );
+}
 
 export function Notice({ tone = 'info', children }: { tone?: 'info' | 'error'; children: React.ReactNode }) {
   const c = useTheme();
@@ -206,4 +241,5 @@ const styles = StyleSheet.create({
   link: { fontSize: 15, fontWeight: '600' },
   notice: { borderWidth: 1, borderRadius: 10, padding: 12 },
   noticeText: { fontSize: 14, lineHeight: 20 },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
 });

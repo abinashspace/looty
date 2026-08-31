@@ -15,6 +15,114 @@
 
 ---
 
+## 2026-08-31 — Profile setup was impossible: the username trigger ran as the caller
+
+Took two real accounts to Tier 2 on live and PATCHed `profiles` as `authenticated`
+to finish onboarding. Postgres returned:
+
+```
+42501 permission denied for table reserved_usernames
+hint: GRANT SELECT ON public.reserved_usernames TO authenticated
+```
+
+`enforce_username_rules` is an ordinary (invoker) trigger. It SELECTs
+`reserved_usernames`, which has no client grants on purpose — the blocklist is not
+something a user should enumerate. So the reserved-name check, written to protect
+usernames, made **every username write fail**. Nobody could finish profile setup.
+
+The word-filter trigger in migration 10 was already SECURITY DEFINER for this
+exact reason. The username trigger was the same shape and was missed because
+every test that set a username ran as superuser, and profile setup has never
+been reachable as `authenticated` before (the routing bug of 2026-08-30 sat in
+front of it).
+
+**Do not "fix" this by granting SELECT on `reserved_usernames`.** That publishes
+the blocklist. Migration 24 makes the trigger SECURITY DEFINER with
+`search_path = public`, matching the word filter.
+
+A test now sets a username *as `authenticated`*. The absence test ("reserved
+names are refused") would have stayed green under the bug — `42501` is also a
+refusal. The positive assertion is the one that catches it.
+
+**Verified live:** the same PATCH then returned 204, `match_feed` showed the
+other student, and both accounts were deleted via `delete-account`.
+
+---
+
+## 2026-08-31 — The event trigger was firing; it was aimed at the wrong grant
+
+The empirical test from 2026-08-30, actually run. Created
+`public._looty_event_trigger_probe()` on live, called it as `anon` via PostgREST.
+
+**Before the fix:** HTTP 200, body `"reachable"`. ACL:
+
+```
+{postgres=X/postgres, anon=X/postgres, authenticated=X/postgres, service_role=X/postgres}
+```
+
+No PUBLIC grant (`=X/` absent). So `lock_functions_on_create` *did* run, and
+`revoke … from public` succeeded at removing a grant that was not the one
+letting `anon` in.
+
+The grants that matter are Supabase's `ALTER DEFAULT PRIVILEGES` for the
+`postgres` role in schema `public`: EXECUTE on every new function to `anon`,
+`authenticated` and `service_role` directly. Migration 12 revoked from PUBLIC,
+which was never the grantee. pglite does not carry those default privileges, which
+is why "a newly created function is closed automatically" passed locally while
+being false in production. The 2026-08-30 claim that "Supabase forbids event
+triggers" was already known to be false; this is the actual cause.
+
+Migration 22:
+
+- `alter default privileges in schema public revoke execute on functions from public, anon, authenticated` (service_role kept, so Edge Functions still work)
+- event trigger now revokes from `anon` as well as PUBLIC
+
+**After the fix, same probe:** `anon_can_execute = false`, ACL
+`{postgres=X, service_role=X}`, PostgREST 401 `42501 permission denied`. Then
+dropped. `match_feed` and `current_tier` still 42501 to `anon`.
+
+`lock_client_functions()` remains mandatory at the end of every migration that
+creates a function. This is the third automatic attempt; it is the first one
+verified on the real platform rather than inferred from pglite.
+
+---
+
+## 2026-08-31 — Account deletion, notification prefs, and the live Tier 2 surface
+
+Phase 7's two free pieces, and the live verified-student run that had been
+blocked on writes.
+
+**`notification_prefs`** (migration 23): own-row table, created with the profile,
+backfilled for the four existing accounts. Defaults: DMs / friend requests /
+Connected on, groups off. Push delivery is not built — these rows are what it
+will read. Verified live as `anon`: 42501. Verified live as the caller: SELECT
+returns the defaults, PATCH `groups=true` returns 204.
+
+**`delete-account` Edge Function:** Auth Admin API, because a client JWT cannot
+delete `auth.users`. Removes avatars first, re-asserts a permanent-ban hash if
+needed, then deletes the user. Cascade takes profile, prefs, messages,
+friendships. `banned_identities` has no `user_id` and is not cascaded, which is
+the point. Verified live: unauthenticated call returns 401 `not_authenticated`;
+a signed-in call with `{confirm:"delete"}` returns `{ok:true}` and the auth row
+is gone.
+
+**Test college on live:** `Looty Test College`, domain `looty.test.invalid`
+(RFC 2606, cannot resolve). Codes still have to be written as postgres. Leave
+it; it is how a session takes an account to Tier 2 without Phase 0.
+
+**Live Tier 2 surface, two accounts, then both deleted:** confirm → profile
+(after the username fix) → join Study → post → `group_thread` → `search_users`
+→ friend request / accept → `open_dm_thread` / message / `my_threads` →
+`match_feed` saw the other person → mutual loot, `loots_remaining` 9 →
+`delete-account` both. The four original debug accounts were not touched.
+`college_domains` now has one row, the test domain.
+
+**Still never run on Android.** No SDK on this machine.
+
+178 tests, `tsc --noEmit` clean. 24 migrations, 23 tables, two Edge Functions.
+
+---
+
 ## 2026-08-30 — The app rendered for the first time, and signup was broken
 
 Ran the UI for the first time in the project's history. The phone could not reach

@@ -277,6 +277,22 @@ async function noEffect(uid, sql, params = []) {
   });
 }
 
+console.log('\nUsername rules as a client');
+await check('authenticated user can pick a username', async () => {
+  // The reserved-list trigger used to run as the caller, so this exact statement
+  // returned 42501 on live while every superuser username test stayed green.
+  const { rows: [u] } = await db.query(
+    `insert into auth.users (email) values ('namepick@gmail.com') returning id`);
+  await asUser(u.id, () =>
+    db.query(`update profiles set username='namepick' where id=$1`, [u.id]));
+  eq((await one(`select username from profiles where id=$1`, [u.id])).username, 'namepick');
+});
+await check('authenticated user is still refused a reserved username', async () => {
+  const { rows: [u] } = await db.query(
+    `insert into auth.users (email) values ('resname@gmail.com') returning id`);
+  await denied(u.id, `update profiles set username='admin' where id=$1`, [u.id]);
+});
+
 // Fresh cast: three verified students, all old enough to report.
 const users = {};
 for (const name of ['ana', 'bo', 'cy']) {
@@ -1118,6 +1134,46 @@ await check('group_thread collapses blocked senders instead of hiding them', asy
 });
 
 // ---------------------------------------------------------------------------
+// Notification prefs and account-deletion cascade
+// ---------------------------------------------------------------------------
+
+console.log('\nNotification prefs');
+await check('signup creates a prefs row', async () =>
+  eq((await one(`select count(*) c from notification_prefs where user_id=$1`, [u1.id])).c, 1));
+await check('defaults: groups off, the rest on', async () => {
+  const r = await one(
+    `select dms, friend_requests, connections, groups from notification_prefs where user_id=$1`,
+    [u1.id]);
+  eq(r.dms, true); eq(r.friend_requests, true); eq(r.connections, true); eq(r.groups, false);
+});
+await check('owner can change their own prefs', async () => {
+  await asUser(u1.id, () =>
+    db.query(`update notification_prefs set groups=true where user_id=$1`, [u1.id]));
+  eq((await one(`select groups g from notification_prefs where user_id=$1`, [u1.id])).g, true);
+});
+await check('cannot change someone else\'s prefs', () =>
+  noEffect(u1.id, `update notification_prefs set dms=false where user_id=$1`, [u2.id]));
+await check('anon has no grants on notification_prefs', async () => {
+  const r = await one(`select count(*) c from information_schema.table_privileges
+    where table_name='notification_prefs' and grantee='anon'`);
+  eq(r.c, 0);
+});
+await check('deleting a user takes the profile and prefs, not the ban anchor', async () => {
+  const { rows: [gone] } = await db.query(
+    `insert into auth.users (email) values ('gone@gmail.com') returning id`);
+  await db.query(`update profiles set college_email='gone@iitb.ac.in' where id=$1`, [gone.id]);
+  const hash = (await one(
+    `select encode(sha256(convert_to(lower('gone@iitb.ac.in'),'UTF8')),'hex') h`)).h;
+  await db.query(
+    `insert into banned_identities (hash, kind) values ($1,'college_email') on conflict do nothing`,
+    [hash]);
+  await db.query(`delete from auth.users where id=$1`, [gone.id]);
+  eq((await one(`select count(*) c from profiles where id=$1`, [gone.id])).c, 0, 'profile leftover');
+  eq((await one(`select count(*) c from notification_prefs where user_id=$1`, [gone.id])).c, 0, 'prefs leftover');
+  eq((await one(`select count(*) c from banned_identities where hash=$1`, [hash])).c, 1, 'anchor lost');
+});
+
+// ---------------------------------------------------------------------------
 // Function execute privileges
 //
 // Postgres grants EXECUTE to PUBLIC by default, unlike tables. These pin that the
@@ -1139,11 +1195,18 @@ await check('service-role-only functions stay closed to authenticated', async ()
     eq(r.x, false, fn);
   }
 });
+await check('a newly created function is closed to anon without the sweep', async () => {
+  // Migration 22 aims the event trigger at anon, not just PUBLIC, and stops
+  // default privileges granting to anon in the first place. This asserts the
+  // outcome. It is still not proof of production — pglite was happy with the
+  // previous trigger too — so a live anon RPC against a throwaway function is
+  // what actually settles it. See LOG.md 2026-08-31.
+  await db.exec(`create or replace function public.probe_auto_lock() returns int language sql as $$ select 1 $$`);
+  const r = await one(`select has_function_privilege('anon','public.probe_auto_lock()','execute') x`);
+  await db.exec(`drop function public.probe_auto_lock()`);
+  eq(r.x, false, 'new function was open to anon');
+});
 await check('the sweep closes a newly created function', async () => {
-  // NOTE: pglite runs the migration-14 event trigger and Supabase does not, so a
-  // test asserting functions close *automatically* passes here and lies about
-  // production — which is exactly what happened. This tests the sweep instead,
-  // because the sweep is the mechanism that actually holds on both.
   await db.exec(`create or replace function public.probe_lockdown() returns int language sql as $$ select 1 $$`);
   await db.exec(`grant execute on function public.probe_lockdown() to anon`);
   await db.query(`select public.lock_client_functions()`);

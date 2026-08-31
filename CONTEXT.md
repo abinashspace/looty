@@ -9,7 +9,7 @@
 > also get a dated entry in [`LOG.md`](LOG.md), which is append-only and never
 > edited. CONTEXT = what is true now. LOG = how it got that way.
 >
-> Last updated: 2026-08-29
+> Last updated: 2026-08-31
 
 ---
 
@@ -50,31 +50,33 @@ your campus crush" in the store description undoes it and puts the rating back t
 
 **Nothing is shipped, but the app is built.** Every screen exists and works against
 the live Supabase project. **It has still never been run on Android** — not on a
-device, not on an emulator. Correctness rests on tests, typechecking, a successful
-Android bundle, and direct calls against the live API.
+device, not on an emulator. This machine has no Android SDK. Correctness now also
+rests on direct calls against the live API as a real Tier 2 user, not only as
+`anon` / Tier 0.
 
 **It has been run once in a browser**, on 2026-08-30, via `react-native-web` as a
 stopgap when the phone could not reach the dev server. That is not a substitute for
 Android and proves nothing about the native paths — but it took five minutes to find
 a bug that had made **signup impossible for every user**, which the whole test suite
 had passed straight over. See LOG.md, 2026-08-30. Treat "runs on Android" as the
-single largest piece of unverified ground on this project.
+single largest piece of unverified *native* ground. The verified-student API
+surface is no longer in that category; it was exercised live on 2026-08-31.
 
 | Phase | Scope | Status |
 |---|---|---|
-| 0 | College domain list | **Not started — needs the owner.** Now the biggest open risk, see §7 |
+| 0 | College domain list | **Not started — needs the owner.** Now the biggest open risk, see §7. A test-only domain `looty.test.invalid` is on live for probes, not for students |
 | 1 | Auth, verification, trust tiers, profile | Schema, screens and Edge Function done. **Missing: Google Sign-In, real email delivery** |
-| 2 | Friends, DMs, block/report | Done — schema, tests, inbox, threads, search, requests |
-| 3 | Groups | Done — schema, tests, room list and live chat |
-| 4 | Looty Match | Done — schema, tests, feed, quota, Looted-you paywall |
+| 2 | Friends, DMs, block/report | Done — schema, tests, inbox, threads, search, requests. **Verified live as Tier 2** |
+| 3 | Groups | Done — schema, tests, room list and live chat. **Verified live as Tier 2** |
+| 4 | Looty Match | Done — schema, tests, feed, quota, Looted-you paywall. **Verified live as Tier 2** (loot, mutual Connect, quota) |
 | 5 | Automatic moderation engine | Done — schema, tests, restriction screen and appeal form |
 | 6 | Ads + subscription | **Not started — needs AdMob and Play Console** |
-| 7 | Play Store requirements | **Not started — needs Play Console.** Account deletion and notification prefs are free to build and are not done either |
+| 7 | Play Store requirements | Account deletion and notification prefs are **built**. Store listing / Play Console still needed |
 
 ### What exists right now
 
 ```
-supabase/migrations/   21 migrations. Phase 1: colleges + domain allowlist,
+supabase/migrations/   24 migrations. Phase 1: colleges + domain allowlist,
                        profiles, verifications + bans + access gate, RLS +
                        column grants. Phase 2: blocks + friendships, threads +
                        messages, reports, Phase 2 RLS. Then: college email
@@ -87,15 +89,16 @@ supabase/migrations/   21 migrations. Phase 1: colleges + domain allowlist,
                        storage bucket, derived onboarding_complete,
                        my_threads() + realtime publication, match filter
                        grants + my_match_prefs(), friend discovery,
-                       function lockdown sweep
-supabase/functions/    issue-college-code (deployed)
-supabase/tests/run.mjs 169 behaviour tests, run with `npm run test:db`
+                       function lockdown sweep, function-create grants fix,
+                       notification_prefs, username trigger SECURITY DEFINER
+supabase/functions/    issue-college-code, delete-account (both deployed)
+supabase/tests/run.mjs 178 behaviour tests, run with `npm run test:db`
 supabase/seed.sql      sample colleges; domain list deliberately EMPTY
 mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/lib/tiers.ts     client mirror of the server tier gate — NOT security
   src/lib/session.tsx  auth session + profile + signup step resolution
   src/lib/supabase.ts  client; degrades to a setup screen when .env is absent
-  src/components/ui.tsx  Screen / Field / Button / Notice — the whole kit
+  src/components/ui.tsx  Screen / Field / Button / Notice / Toggle — the whole kit
   src/components/chat.tsx  MessageList + Composer, shared by groups and DMs
   src/app/(auth)/      sign-in, verify, college, profile-setup — all REAL
   src/app/(app)/       groups/ (list, room), chats/ (inbox, thread, search,
@@ -104,16 +107,17 @@ mobile/                Expo app (SDK 57, RN 0.86), Android-only
 ```
 
 **Every screen is now built.** Sign in, college-email verification, profile setup
-with photo, your own profile, three group rooms with live chat, the DM inbox and 1:1
-chat, the Match feed with loot/pass and daily quota, the Looted-you list with its
-paywall, and the restriction screen with an appeal form. Report and Block sit in the
-chat header.
+with photo, your own profile (tier badge, notification switches, account deletion),
+three group rooms with live chat, the DM inbox and 1:1 chat, the Match feed with
+loot/pass and daily quota, the Looted-you list with its paywall, and the
+restriction screen with an appeal form. Report and Block sit in the chat header.
 
 The only remaining `Placeholder` is the "Supabase not configured" screen, which is
 meant to be one.
 
-**Not built yet:** Phase 6 (ads, Play Billing) and Phase 7's store half, both
-parked behind paid accounts. Google Sign-In.
+**Not built yet:** Phase 6 (ads, Play Billing) and Phase 7's store listing,
+both parked behind paid accounts. Google Sign-In. `push_tokens` / actual push
+delivery — the preference rows exist, nothing sends yet.
 
 **Messages are text-only in the client so far.** The schema supports images in DMs
 and Connected chats (`messages.image_url`), and the spec calls for blur-by-default
@@ -130,20 +134,21 @@ Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
 
 ### Verified so far
 
-`npm run test:db` passes 169/169. `npx tsc --noEmit` is clean, and
-`npx expo export --platform android` produces a bundle, which proves imports
-resolve. Nothing has been run on a device or emulator; the browser run noted above
-is the only time the UI has rendered at all.
+`npm run test:db` passes 178/178. `npx tsc --noEmit` is clean. Nothing has been
+run on a device or emulator; the browser run noted above is the only time the UI
+has rendered at all. This machine has no Android SDK (`ANDROID_HOME` unset, no
+`adb`).
 
 The Phase 2 tests run as an actual `authenticated` role with a JWT claim set, so
 RLS genuinely applies to them. Phase 1 tests run as superuser and therefore check
 grant *metadata* rather than live enforcement — a weaker guarantee, worth knowing
 when reading them.
 
-**Against the live database:** all 22 tables exist, and every one of them refuses
-the `anon` role outright (`42501 permission denied`). That matters more than it
-looks — the anon key ships inside the APK and anyone can extract it in a minute, so
-"anon can read nothing" is the property that keeps the whole database private.
+**Against the live database:** all 23 tables exist, and every one of them refuses
+the `anon` role outright (`42501 permission denied`). Re-checked for
+`notification_prefs` on 2026-08-31. That matters more than it looks — the anon
+key ships inside the APK and anyone can extract it in a minute, so "anon can
+read nothing" is the property that keeps the whole database private.
 
 **Functions are locked too, and this needed fixing.** Postgres grants EXECUTE on
 every new function to PUBLIC by default — the opposite of tables, which start
@@ -155,24 +160,34 @@ permission system. Two attempted fixes both failed silently. Migration 12's
 14 replaced it with an **event trigger**, and every function added afterwards still
 shipped open to `anon`.
 
-> **Why migration 14's event trigger failed is UNKNOWN, and the answer previously
-> recorded here was wrong.** This file, LOG.md and migration 21's header all used to
-> say Supabase forbids event triggers and that an exception handler swallowed the
-> failure. Checked against the live database on 2026-08-30: **the event trigger
-> `lock_functions_on_create` exists, is enabled, and is running**, as is a second one
-> (`ensure_rls`) from migration 4. Supabase permitted both. Migration 21's sweep has
-> since revoked and re-granted everything, so the current ACLs look identical whether
-> the trigger works or not and the evidence is gone. Settling it needs the empirical
-> test: create a throwaway function on the live project and call it as `anon`.
+> **Why migration 14's event trigger failed is now SETTLED, live, 2026-08-31.**
+> The trigger exists, is enabled, and **does run**. A throwaway
+> `public._looty_event_trigger_probe()` was created on production and called as
+> `anon` via PostgREST: it returned 200 `"reachable"`. The resulting ACL was
+> `{postgres=X, anon=X, authenticated=X, service_role=X}` — no PUBLIC grant. So
+> `revoke … from public` succeeded at doing nothing useful.
+>
+> The grants that matter come from Supabase's `ALTER DEFAULT PRIVILEGES` for the
+> `postgres` role in schema `public`, which grants EXECUTE on every new function
+> to `anon`, `authenticated` and `service_role` **directly**. Migration 12 revoked
+> from PUBLIC, which was never the grantee. The earlier claim that "Supabase
+> forbids event triggers" was false; the trigger was aimed at the wrong grant.
+>
+> Migration 22 stops those default privileges (leaving `service_role`) and makes
+> the trigger revoke from `anon` as well as PUBLIC. Re-probed live: a new function
+> now returns `42501 permission denied` to `anon`, ACL
+> `{postgres=X, service_role=X}` only. Then dropped.
 
-**The working mechanism is `lock_client_functions()` (migration 21):** an explicit,
-idempotent sweep that revokes PUBLIC and `anon` across the schema while leaving
-`authenticated` grants alone.
+**The working mechanisms are now three, in order of how much we trust them:**
 
-> **Every migration that creates a function must end with**
+1. `lock_client_functions()` (migration 21) — explicit sweep. Still mandatory.
+2. Default privileges no longer grant EXECUTE to `anon` / `authenticated`.
+3. The event trigger, now actually revoking `anon`.
+
+> **Every migration that creates a function must still end with**
 > `select public.lock_client_functions();`
-> Nothing enforces this automatically. Two attempts to make it automatic both
-> failed, and both looked like they had worked.
+> Two earlier automatic attempts failed while looking like they had worked. The
+> third is verified live, and the sweep stays.
 
 **Authenticated behaviour is now verified live too.** A real test account
 (`looty.devtest2@gmail.com`) confirms: the signup trigger creates the profile row,
@@ -189,20 +204,36 @@ The `issue-college-code` function is deployed and working; without `RESEND_API_K
 it logs the code instead of sending it, and refuses to do that when
 `LOOTY_ENV=production`.
 
-**The happy path cannot be fully verified yet**, because it needs a real verified
-college domain in `college_domains` — which is Phase 0, and cannot be done from a
-keyboard. Everything around it is verified: the function returns 401
-unauthenticated, 422 for an unrecognised domain, 400 for a malformed address, and
-`confirm_college_email` has nine tests covering codes, expiry, lockout, reuse and
-banned addresses.
+**The happy path through a real mailbox still cannot be verified** — that needs
+`RESEND_API_KEY` and a college that actually issues mail. The rest of the path
+**has** been verified live, using a test college (`Looty Test College`, domain
+`looty.test.invalid`, RFC 2606 so it can never resolve) and a code row inserted
+as postgres: `confirm_college_email` returned `ok`, `current_tier()` returned 2,
+and the same session joined a group, posted, searched, friend-requested, DM'd,
+looted, and deleted both accounts via `delete-account`. See LOG.md, 2026-08-31.
+
+A second live bug turned up on that same run: **nobody could pick a username.**
+`enforce_username_rules` ran as the caller and SELECTed `reserved_usernames`,
+which has no client grants. Profile setup has never been reachable as
+`authenticated` before (signup routing was broken until 2026-08-30, and every
+username test ran as superuser). Migration 24 makes the trigger SECURITY DEFINER,
+same pattern as the word-filter trigger. Verified live: the profile PATCH that
+returned `42501` then succeeded, and `match_feed` showed the other test student.
 
 ### Live infrastructure
 
 **Supabase project `zsfjwlmeeodsiwruvine`**, region `ap-south-1` (Mumbai),
-Postgres 17.6, on the free plan. All 21 migrations are deployed, plus the `issue-college-code` Edge Function. The repo is linked
+Postgres 17.6, on the free plan. All 24 migrations are deployed, plus the
+`issue-college-code` and `delete-account` Edge Functions. The repo is linked
 via the Supabase CLI, so `npx supabase db push` applies new migrations directly —
 it authenticates with the stored access token and does not prompt for the database
-password.
+password. `npx supabase db query --linked` can write as well as read; that is how
+the event-trigger probe and the test college were applied.
+
+A test college exists on live: **Looty Test College**, domain `looty.test.invalid`.
+It is not a student-facing entry. `.invalid` cannot resolve, so nobody can complete
+verification without a code row written as postgres / service_role. Leave it; it is
+how the next session takes an account to Tier 2 without touching Phase 0.
 
 `mobile/.env` holds the project URL and anon key. It is gitignored; recreate it
 from `mobile/.env.example` if it goes missing.
@@ -220,13 +251,21 @@ Notes that cost time to rediscover:
 - **`supabase db push` never prompts for the database password.** The CLI is linked
   and authenticates with the stored access token; linking used `--password ""`.
 - **The database tests need no network at all** — pglite runs the migrations
-  in-process. But see the warning above: pglite is more permissive than Supabase in
-  at least one way that mattered (event triggers), so a green suite is not proof
-  about production.
+  in-process. pglite does not carry Supabase's `ALTER DEFAULT PRIVILEGES` that
+  grant EXECUTE on new functions to `anon`, so a test that a new function is
+  closed can pass here and still have been false in production (migration 14).
+  A green suite is not proof about production. Call the live API.
 - **A dev test account exists**, `looty.devtest2@gmail.com`, used for the live
   authenticated checks. Its password is deliberately not in the repo; reset it from
   the Supabase dashboard (Authentication → Users) if needed. Email confirmation is
   off, so new test accounts can be created and used immediately.
+- **No Android SDK on this machine.** `ANDROID_HOME` / `ANDROID_SDK_ROOT` unset,
+  no `adb`. USB with platform-tools is still the reliable route to a device; it
+  has not been installed.
+- **`npx supabase db query --linked` is how you run SQL on live.** It is postgres,
+  so it bypasses RLS. That is the right tool for probes and the wrong tool for
+  claiming a client can do something — always follow a write with the same call
+  as `anon` or a user JWT.
 
 ### Blocked on the user (cannot proceed without these)
 
@@ -531,12 +570,15 @@ bans                id, user_id, type, starts_at, ends_at,
                     lifted_at, lift_reason, issued_by
 appeals             id, ban_id(unique), user_id, body, status
 banned_identities   hash, kind  -- ban anchor; survives account deletion
+notification_prefs  user_id, dms, friend_requests, connections, groups
+                    -- own-row only; delivery is not wired yet
 ```
 
-That is **all 22 tables**, verified against the live database on 2026-08-30. Earlier
-versions of this section listed several tables twice and named two that do not
-exist: **`push_tokens` and `notification_prefs` have never been built.** They belong
-to Phase 7 along with account deletion, and none of it is started.
+That is **all 23 tables**, verified against the live database on 2026-08-31.
+**`push_tokens` has never been built.** Account deletion is an Edge Function
+(`delete-account`), not a table: it calls the Auth Admin API, removes avatars,
+re-asserts a permanent-ban hash if needed, then deletes `auth.users`. The cascade
+takes the rest. `banned_identities` has no `user_id` on purpose.
 
 ### The rule that matters most
 

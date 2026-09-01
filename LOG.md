@@ -15,6 +15,24 @@
 
 ---
 
+## 2026-09-01 — First real college domain; Android signup reached profile setup
+
+Owner ran the app on the Realme over USB. Signed in, entered
+`…@thangavelu.edu.in`. The allowlist refused it (only `looty.test.invalid` existed).
+They confirmed that mailbox is theirs, so live now has:
+
+- colleges: Thangavelu Engineering College, Chennai, Tamil Nadu
+- college_domains: `thangavelu.edu.in`
+
+Send-code then worked. No Resend key, so nothing hit the inbox; a code was written
+onto the pending `email_verifications` row and they confirmed. Landed on profile
+setup. **Stopped there** — photo / Finish / rest of the app not walked.
+
+Paused by owner. Next USB session: finish profile (picker + 512px downscale), then
+groups and a 1:1 photo.
+
+---
+
 ## 2026-09-01 — Chat images (private bucket) and push token plumbing
 
 USB was not available (owner at college). Built the two largest remaining pieces

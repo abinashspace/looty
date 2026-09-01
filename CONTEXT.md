@@ -50,9 +50,9 @@ your campus crush" in the store description undoes it and puts the rating back t
 
 **Nothing is shipped, but the app is built.** Every screen exists and works against
 the live Supabase project. **It has been run on a real Android phone** (Realme
-RMX3771, 2026-08-31) via USB + Expo Go 57. That is the first native render in the
-project's history. Image picker, photo downscale, realtime and screenshot handling
-have still not been walked through on device.
+RMX3771) via USB + Expo Go 57. On 2026-09-01 the owner signed in, confirmed a
+college email at `thangavelu.edu.in`, and reached **profile setup**. Photo picker,
+downscale, Finish, groups, DMs and chat images have not been walked on device yet.
 
 **It has also been run once in a browser**, on 2026-08-30, via `react-native-web`.
 That found the signup-routing bug. The verified-student API surface was exercised
@@ -60,7 +60,7 @@ live as Tier 2 on 2026-08-31.
 
 | Phase | Scope | Status |
 |---|---|---|
-| 0 | College domain list | **Not started — needs the owner.** Now the biggest open risk, see §7. A test-only domain `looty.test.invalid` is on live for probes, not for students |
+| 0 | College domain list | **Started.** Live has `thangavelu.edu.in` (owner-confirmed student mailbox) plus probe domain `looty.test.invalid`. Every other college still missing |
 | 1 | Auth, verification, trust tiers, profile | Schema, screens and Edge Function done. **Missing: Google Sign-In, real email delivery** |
 | 2 | Friends, DMs, block/report | Done — schema, tests, inbox, threads, search, requests. **Verified live as Tier 2** |
 | 3 | Groups | Done — schema, tests, room list and live chat. **Verified live as Tier 2** |
@@ -202,8 +202,8 @@ The `issue-college-code` function is deployed and working; without `RESEND_API_K
 it logs the code instead of sending it, and refuses to do that when
 `LOOTY_ENV=production`.
 
-**The happy path through a real mailbox still cannot be verified** — that needs
-`RESEND_API_KEY` and a college that actually issues mail. The rest of the path
+**A real mailbox domain is now on the allowlist** (`thangavelu.edu.in`), but
+codes still do not email — that needs `RESEND_API_KEY`. The rest of the path The rest of the path
 **has** been verified live, using a test college (`Looty Test College`, domain
 `looty.test.invalid`, RFC 2606 so it can never resolve) and a code row inserted
 as postgres: `confirm_college_email` returned `ok`, `current_tier()` returned 2,
@@ -228,10 +228,16 @@ it authenticates with the stored access token and does not prompt for the databa
 password. `npx supabase db query --linked` can write as well as read; that is how
 the event-trigger probe and the test college were applied.
 
-A test college exists on live: **Looty Test College**, domain `looty.test.invalid`.
-It is not a student-facing entry. `.invalid` cannot resolve, so nobody can complete
-verification without a code row written as postgres / service_role. Leave it; it is
-how the next session takes an account to Tier 2 without touching Phase 0.
+Live `college_domains` has two rows:
+
+- **`thangavelu.edu.in`** — Thangavelu Engineering College, Chennai. Added
+  2026-09-01 after the owner confirmed they hold a mailbox on it. First real
+  college on the allowlist.
+- **`looty.test.invalid`** — probe only. `.invalid` cannot resolve.
+
+Codes still do not email: no `RESEND_API_KEY`. The function logs the code when
+`LOOTY_ENV` is not production. The owner's confirm used a code written onto the
+pending row.
 
 `mobile/.env` holds the project URL and anon key. It is gitignored; recreate it
 from `mobile/.env.example` if it goes missing.

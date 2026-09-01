@@ -15,6 +15,19 @@
 
 ---
 
+## 2026-09-01 — Client registers Expo push tokens
+
+Laptop-only. `register_push_token` / `unregister_push_token` existed with no
+caller. After onboarding completes, the app asks for notification permission,
+creates an Android channel, and stores the Expo token. Sign-out unregisters
+the last token kept in AsyncStorage.
+
+Expo Go on Android (SDK 53+) cannot fetch a remote push token, so this is a
+no-op there. A native/EAS build plus an EAS `projectId` is required before a
+row lands. Nothing is sent yet — `should_notify` still has no sender.
+
+---
+
 ## 2026-09-01 — USB: profile complete, groups joined, composer keyboard lift
 
 Owner finished profile on the Realme as Abinash S / @abinashspace, College

@@ -100,6 +100,7 @@ mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/lib/session.tsx  auth session + profile + signup step resolution
   src/lib/supabase.ts  client; degrades to a setup screen when .env is absent
   src/lib/chat-image.ts  private upload + signed URL for 1:1 photos
+  src/lib/push.ts      register/unregister Expo push token (no-op in Expo Go)
   src/components/ui.tsx  Screen / Field / Button / Notice / Toggle — the whole kit
   src/components/chat.tsx  ChatShell + MessageList + Composer (groups and DMs)
   src/app/(auth)/      sign-in, verify, college, profile-setup — all REAL
@@ -118,9 +119,12 @@ The only remaining `Placeholder` is the "Supabase not configured" screen, which 
 meant to be one.
 
 **Not built yet:** Phase 6 (ads, Play Billing). Google Sign-In is **wired** and
-hidden until the OAuth client exists. Actual push *delivery* (Expo Push → FCM)
-— tokens and `should_notify()` exist, nothing is sent yet. Play listing copy
-and a privacy policy are drafted under `legal/`; they are not hosted.
+hidden until the OAuth client exists. Push *delivery* (Expo Push → FCM) is not
+sent yet. The client calls `register_push_token` after onboarding and
+`unregister_push_token` on sign-out; Expo Go on Android cannot obtain a remote
+token (SDK 53+), so that path is a no-op until a native/EAS build with a
+`projectId`. Play listing copy and a privacy policy are drafted under
+`legal/`; they are not hosted.
 
 **1:1 chats can carry images.** Stored in the private `chat-images` bucket;
 `messages.image_url` holds the path, not a public URL. Connected chats do not
@@ -604,7 +608,8 @@ appeals             id, ban_id(unique), user_id, body, status
 banned_identities   hash, kind  -- ban anchor; survives account deletion
 notification_prefs  user_id, dms, friend_requests, connections, groups
                     -- own-row only; delivery is not wired yet
-push_tokens         token, user_id  -- Expo tokens; no client table grants
+push_tokens         token, user_id  -- Expo tokens; no client table grants;
+                    -- client RPCs register/unregister; Expo Go cannot mint one
 ```
 
 That is **all 24 tables**, verified against the live database on 2026-09-01.

@@ -20,6 +20,7 @@ import {
 } from 'react';
 import type { Session } from '@supabase/supabase-js';
 
+import { registerPushToken, unregisterPushToken } from './push';
 import { isSupabaseConfigured, supabase } from './supabase';
 import { Tier, effectiveTier, type TrustTier } from './tiers';
 
@@ -139,12 +140,19 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
   }, [load]);
 
+  useEffect(() => {
+    if (loading || !session?.user.id) return;
+    if (resolveStep(session, profile) !== 'done') return;
+    void registerPushToken();
+  }, [loading, session, profile]);
+
   const refresh = useCallback(
     () => load(session?.user.id),
     [load, session?.user.id],
   );
 
   const signOut = useCallback(async () => {
+    await unregisterPushToken();
     await supabase.auth.signOut();
     setProfile(null);
     setIsBanned(false);

@@ -15,6 +15,26 @@
 
 ---
 
+## 2026-09-01 — USB: profile complete, groups joined, composer keyboard lift
+
+Owner finished profile on the Realme as Abinash S / @abinashspace, College
+Verified, and walked every tab. Match and Looted-you are empty because they are
+the only live student at Thangavelu. Sports and Friends were already joined;
+Study was joined over USB and a group send landed in the room and in
+`group_messages`.
+
+Bug on device: Expo Go overlays the IME on the composer, so the field and Send
+are hidden while typing. `Screen` already used KeyboardAvoidingView; group and
+DM rooms did not. `ChatShell` now measures the overlap and pads the scene.
+`softwareKeyboardLayoutMode: resize` is set for a future native build (Expo Go
+ignores it). Room subtitle says "1 member" instead of "1 members".
+
+The keyboard lift was not re-checked on the phone — the owner left Expo Go
+before the reload. 1:1 photos and screenshot notices still need a second
+account.
+
+---
+
 ## 2026-09-01 — Profile photo is optional
 
 Owner rejected required faces: privacy / anonymity, and a face-feed is

@@ -9,9 +9,8 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Composer, MessageList, type ChatMessage } from '@/components/chat';
+import { ChatShell, Composer, MessageList, type ChatMessage } from '@/components/chat';
 import { useTheme } from '@/hooks/use-theme';
 import { signedChatImageUrl, uploadChatImage } from '@/lib/chat-image';
 import { useConnectedCapture } from '@/lib/connected-capture';
@@ -181,7 +180,7 @@ export default function Chat() {
   useConnectedCapture(id, thread?.type === 'connection' && !ended);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: c.background }} edges={['top']}>
+    <ChatShell>
       <View style={[styles.header, { borderBottomColor: c.border }]}>
         <Pressable onPress={() => router.back()} hitSlop={10} accessibilityRole="button">
           <Text style={{ color: c.accent, fontSize: 16 }}>‹</Text>
@@ -217,7 +216,7 @@ export default function Chat() {
         disabled={ended}
         disabledReason="This chat has ended."
       />
-    </SafeAreaView>
+    </ChatShell>
   );
 }
 

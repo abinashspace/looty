@@ -9,9 +9,8 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Composer, MessageList, type ChatMessage } from '@/components/chat';
+import { ChatShell, Composer, MessageList, type ChatMessage } from '@/components/chat';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
@@ -96,7 +95,7 @@ export default function GroupRoom() {
   const title = room ? room.category.charAt(0).toUpperCase() + room.category.slice(1) : 'Group';
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: c.background }} edges={['top']}>
+    <ChatShell>
       <View style={[styles.header, { borderBottomColor: c.border }]}>
         <Pressable onPress={() => router.back()} hitSlop={10} accessibilityRole="button">
           <Text style={{ color: c.accent, fontSize: 16 }}>‹ Back</Text>
@@ -105,7 +104,8 @@ export default function GroupRoom() {
           <Text style={[styles.title, { color: c.text }]}>{title}</Text>
           {room ? (
             <Text style={{ color: c.textSecondary, fontSize: 12 }}>
-              Room {room.room_number} · {room.member_count} members
+              Room {room.room_number} · {room.member_count}{' '}
+              {room.member_count === 1 ? 'member' : 'members'}
             </Text>
           ) : null}
         </View>
@@ -130,7 +130,7 @@ export default function GroupRoom() {
               : 'Join this group to post.'
         }
       />
-    </SafeAreaView>
+    </ChatShell>
   );
 }
 

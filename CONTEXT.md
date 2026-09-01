@@ -51,9 +51,12 @@ your campus crush" in the store description undoes it and puts the rating back t
 **Nothing is shipped, but the app is built.** Every screen exists and works against
 the live Supabase project. **It has been run on a real Android phone** (Realme
 RMX3771) via USB + Expo Go 57. On 2026-09-01 the owner signed in, confirmed a
-college email at `thangavelu.edu.in`, and reached **profile setup**. Photo picker,
-downscale, Finish, groups, DMs, chat images and screenshot handling have not been
-walked on device yet.
+college email at `thangavelu.edu.in`, finished profile setup as **Abinash S /
+@abinashspace** (College Verified, optional photo uploaded), and walked Groups,
+Match, Looted you, Chats, and You. Study / Sports / Friends are joined. A group
+text send was verified on device. Expo Go's keyboard covered the composer; the
+client now lifts it (`ChatShell`). 1:1 photos, screenshot notices / FLAG_SECURE,
+and Match with a second student have not been walked on a phone.
 
 **It has also been run once in a browser**, on 2026-08-30, via `react-native-web`.
 That found the signup-routing bug. The verified-student API surface was exercised
@@ -98,7 +101,7 @@ mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/lib/supabase.ts  client; degrades to a setup screen when .env is absent
   src/lib/chat-image.ts  private upload + signed URL for 1:1 photos
   src/components/ui.tsx  Screen / Field / Button / Notice / Toggle — the whole kit
-  src/components/chat.tsx  MessageList + Composer, shared by groups and DMs
+  src/components/chat.tsx  ChatShell + MessageList + Composer (groups and DMs)
   src/app/(auth)/      sign-in, verify, college, profile-setup — all REAL
   src/app/(app)/       groups/ (list, room), chats/ (inbox, thread, search,
                        requests), match, looted, profile — all REAL
@@ -135,9 +138,10 @@ Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
 ### Verified so far
 
 `npm run test:db` passes 198/198. `npx tsc --noEmit` is clean. The UI has rendered
-on a real Android device (2026-08-31) and once in a browser (2026-08-30). Chat
-images and push-token RPCs were verified against the live API on 2026-09-01;
-the image picker itself has not been tapped on a device.
+on a real Android device (2026-08-31, again 2026-09-01 through profile, groups,
+and a Study send) and once in a browser (2026-08-30). Chat images and push-token
+RPCs were verified against the live API on 2026-09-01; the 1:1 image picker has
+not been tapped on a device.
 
 The Phase 2 tests run as an actual `authenticated` role with a JWT claim set, so
 RLS genuinely applies to them. Phase 1 tests run as superuser and therefore check

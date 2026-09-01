@@ -12,11 +12,12 @@
  * the Looted-you list. Friend DMs show the photo immediately.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
   Image,
+  Keyboard,
   Pressable,
   StyleSheet,
   Text,
@@ -27,6 +28,51 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 
 import { useTheme } from '@/hooks/use-theme';
+
+function useKeyboardOpen() {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setOpen(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setOpen(false));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+  return open;
+}
+
+/**
+ * Lifts the composer by the overlap between this scene and the IME.
+ * Expo Go does not apply app.json softwareKeyboardLayoutMode, so the
+ * keyboard otherwise sits on top of the input.
+ */
+export function ChatShell({ children }: { children: React.ReactNode }) {
+  const c = useTheme();
+  const box = useRef<View>(null);
+  const [lift, setLift] = useState(0);
+
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', (e) => {
+      box.current?.measureInWindow((_x, y, _w, h) => {
+        setLift(Math.max(0, y + h - e.endCoordinates.screenY));
+      });
+    });
+    const hide = Keyboard.addListener('keyboardDidHide', () => setLift(0));
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: c.background }} edges={['top']}>
+      <View ref={box} collapsable={false} style={{ flex: 1, paddingBottom: lift }}>
+        {children}
+      </View>
+    </SafeAreaView>
+  );
+}
 
 export type ChatMessage = {
   id: string;
@@ -159,6 +205,7 @@ export function MessageList({
       renderItem={renderItem}
       contentContainerStyle={styles.list}
       keyboardDismissMode="interactive"
+      keyboardShouldPersistTaps="handled"
     />
   );
 }
@@ -179,6 +226,7 @@ export function Composer({
   placeholder?: string;
 }) {
   const c = useTheme();
+  const keyboardOpen = useKeyboardOpen();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -221,7 +269,7 @@ export function Composer({
 
   if (disabled) {
     return (
-      <SafeAreaView edges={['bottom']} style={{ backgroundColor: c.background }}>
+      <SafeAreaView edges={keyboardOpen ? [] : ['bottom']} style={{ backgroundColor: c.background }}>
         <View style={[styles.locked, { borderTopColor: c.border }]}>
           <Text style={{ color: c.textSecondary, textAlign: 'center' }}>
             {disabledReason ?? 'You cannot post here.'}
@@ -232,7 +280,7 @@ export function Composer({
   }
 
   return (
-    <SafeAreaView edges={['bottom']} style={{ backgroundColor: c.background }}>
+    <SafeAreaView edges={keyboardOpen ? [] : ['bottom']} style={{ backgroundColor: c.background }}>
       {error ? (
         <Text style={[styles.error, { color: c.danger }]} numberOfLines={2}>
           {error}

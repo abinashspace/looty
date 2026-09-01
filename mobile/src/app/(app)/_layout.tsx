@@ -51,6 +51,7 @@ export default function AppLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} />,
         }}
       />
+      <Tabs.Screen name="privacy" options={{ href: null }} />
     </Tabs>
   );
 }

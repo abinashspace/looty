@@ -34,6 +34,7 @@ export type ChatMessage = {
   body: string | null;
   createdAt: string;
   imageUrl?: string | null;
+  kind?: 'user' | 'screenshot';
   /** Group threads only — omitted in 1:1, where there is only one other person. */
   senderName?: string | null;
   /** Blocked senders collapse rather than vanish; removing them orphans replies. */
@@ -70,6 +71,19 @@ export function MessageList({
           <View style={styles.blockedRow}>
             <Text style={[styles.blockedText, { color: c.textSecondary }]}>
               Message from someone you blocked
+            </Text>
+          </View>
+        );
+      }
+
+      if (item.kind === 'screenshot') {
+        const mine = item.senderId === meId;
+        return (
+          <View style={styles.blockedRow}>
+            <Text style={[styles.blockedText, { color: c.textSecondary }]}>
+              {mine
+                ? 'You took a screenshot. They were told.'
+                : 'They took a screenshot of this chat.'}
             </Text>
           </View>
         );

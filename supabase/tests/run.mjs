@@ -1264,6 +1264,40 @@ await check('an outsider cannot read a chat image path', async () => {
   eq((await asUser(imgC, () => one(`select can_read_chat_image($1) x`, [path]))).x, false);
 });
 
+console.log('\nScreenshot notices');
+const scA = await mkUser('scra');
+const scB = await mkUser('scrb');
+await loot(scA, scB);
+await loot(scB, scA);
+const scThread = (await one(
+  `select id from threads where type='connection'
+     and user_a = least($1::uuid,$2::uuid) and user_b = greatest($1::uuid,$2::uuid)`,
+  [scA, scB])).id;
+await check('a Connected participant can record a screenshot notice', async () => {
+  await asUser(scA, () => db.query(`select record_screenshot($1)`, [scThread]));
+  eq((await one(
+    `select count(*) c from messages where thread_id=$1 and kind='screenshot'`, [scThread])).c, 1);
+});
+await check('a second call within a minute does not flood', async () => {
+  await asUser(scA, () => db.query(`select record_screenshot($1)`, [scThread]));
+  eq((await one(
+    `select count(*) c from messages where thread_id=$1 and kind='screenshot'`, [scThread])).c, 1);
+});
+await check('DM threads do not get screenshot notices', async () => {
+  await asUser(imgA, () => db.query(`select record_screenshot($1)`, [imgThread]));
+  eq((await one(
+    `select count(*) c from messages where thread_id=$1 and kind='screenshot'`, [imgThread])).c, 0);
+});
+await check('clients cannot insert screenshot kind themselves', () =>
+  denied(scA,
+    `insert into messages (thread_id, sender_id, kind, body) values ($1,$2,'screenshot','screenshot')`,
+    [scThread, scA]));
+await check('an outsider cannot record a screenshot on someone else\'s thread', async () => {
+  await asUser(imgC, () => db.query(`select record_screenshot($1)`, [scThread]));
+  eq((await one(
+    `select count(*) c from messages where thread_id=$1 and kind='screenshot'`, [scThread])).c, 1);
+});
+
 console.log('\nFunction execute privileges');
 await check('anon can execute nothing in public', async () => {
   const r = await one(`select count(*) c from pg_proc p
@@ -1307,7 +1341,8 @@ await check('the functions the app actually calls are still callable', async () 
   for (const fn of ['current_tier()', 'match_feed(integer)', 'looted_you()', 'looted_you_count()',
                     'join_group(group_category)', 'confirm_college_email(text)', 'open_dm_thread(uuid)',
                     'can_read_chat_image(text)', 'can_write_chat_image(text)',
-                    'register_push_token(text)', 'unregister_push_token(text)']) {
+                    'register_push_token(text)', 'unregister_push_token(text)',
+                    'record_screenshot(uuid)']) {
     const r = await one(`select has_function_privilege('authenticated', $1, 'execute') x`, [fn]);
     eq(r.x, true, fn);
   }

@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Composer, MessageList, type ChatMessage } from '@/components/chat';
 import { useTheme } from '@/hooks/use-theme';
 import { signedChatImageUrl, uploadChatImage } from '@/lib/chat-image';
+import { useConnectedCapture } from '@/lib/connected-capture';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 
@@ -42,7 +43,7 @@ export default function Chat() {
       supabase.rpc('my_threads'),
       supabase
         .from('messages')
-        .select('id, sender_id, body, image_url, created_at')
+        .select('id, sender_id, body, image_url, kind, created_at')
         .eq('thread_id', id)
         .order('created_at', { ascending: false })
         .limit(100),
@@ -50,16 +51,18 @@ export default function Chat() {
 
     setThread(((threads as Thread[]) ?? []).find((t) => t.thread_id === id) ?? null);
 
-    const mapped = await Promise.all(
+    const mapped: ChatMessage[] = await Promise.all(
       (msgs ?? []).map(async (m) => {
         const path = (m.image_url as string | null) ?? null;
         const imageUrl =
           path && !path.startsWith('http') ? await signedChatImageUrl(path) : path;
+        const kind: ChatMessage['kind'] = m.kind === 'screenshot' ? 'screenshot' : 'user';
         return {
           id: m.id as string,
           senderId: m.sender_id as string,
           body: (m.body as string | null) ?? null,
           imageUrl,
+          kind,
           createdAt: m.created_at as string,
         };
       }),
@@ -175,6 +178,7 @@ export default function Chat() {
   }
 
   const ended = Boolean(thread?.ended_at);
+  useConnectedCapture(id, thread?.type === 'connection' && !ended);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.background }} edges={['top']}>

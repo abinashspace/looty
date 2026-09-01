@@ -13,12 +13,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 
-import { Body, Button, Field, Notice, Screen, Title, Toggle } from '@/components/ui';
+import { Body, Button, Field, LinkButton, Notice, Screen, Title, Toggle } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 import { Tier, isAlumni, TIER_LABEL } from '@/lib/tiers';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 
 type Prefs = {
   dms: boolean;
@@ -185,6 +185,7 @@ export default function Profile() {
       />
 
       <View style={{ height: 8 }} />
+      <LinkButton label="Privacy" onPress={() => router.push('/privacy' as Href)} />
       <Button label="Sign out" variant="secondary" onPress={signOut} />
 
       <Text style={[styles.section, { color: c.text }]}>Delete account</Text>

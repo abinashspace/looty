@@ -52,7 +52,8 @@ your campus crush" in the store description undoes it and puts the rating back t
 the live Supabase project. **It has been run on a real Android phone** (Realme
 RMX3771) via USB + Expo Go 57. On 2026-09-01 the owner signed in, confirmed a
 college email at `thangavelu.edu.in`, and reached **profile setup**. Photo picker,
-downscale, Finish, groups, DMs and chat images have not been walked on device yet.
+downscale, Finish, groups, DMs, chat images and screenshot handling have not been
+walked on device yet.
 
 **It has also been run once in a browser**, on 2026-08-30, via `react-native-web`.
 That found the signup-routing bug. The verified-student API surface was exercised
@@ -72,7 +73,7 @@ live as Tier 2 on 2026-08-31.
 ### What exists right now
 
 ```
-supabase/migrations/   26 migrations. Phase 1: colleges + domain allowlist,
+supabase/migrations/   27 migrations. Phase 1: colleges + domain allowlist,
                        profiles, verifications + bans + access gate, RLS +
                        column grants. Phase 2: blocks + friendships, threads +
                        messages, reports, Phase 2 RLS. Then: college email
@@ -87,9 +88,9 @@ supabase/migrations/   26 migrations. Phase 1: colleges + domain allowlist,
                        grants + my_match_prefs(), friend discovery,
                        function lockdown sweep, function-create grants fix,
                        notification_prefs, username trigger SECURITY DEFINER,
-                       chat-images bucket, push_tokens
+                       chat-images bucket, push_tokens, screenshot notices
 supabase/functions/    issue-college-code, delete-account (both deployed)
-supabase/tests/run.mjs 192 behaviour tests, run with `npm run test:db`
+supabase/tests/run.mjs 197 behaviour tests, run with `npm run test:db`
 supabase/seed.sql      sample colleges; domain list deliberately EMPTY
 mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/lib/tiers.ts     client mirror of the server tier gate — NOT security
@@ -133,7 +134,7 @@ Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
 
 ### Verified so far
 
-`npm run test:db` passes 192/192. `npx tsc --noEmit` is clean. The UI has rendered
+`npm run test:db` passes 197/197. `npx tsc --noEmit` is clean. The UI has rendered
 on a real Android device (2026-08-31) and once in a browser (2026-08-30). Chat
 images and push-token RPCs were verified against the live API on 2026-09-01;
 the image picker itself has not been tapped on a device.
@@ -222,7 +223,7 @@ returned `42501` then succeeded, and `match_feed` showed the other test student.
 ### Live infrastructure
 
 **Supabase project `zsfjwlmeeodsiwruvine`**, region `ap-south-1` (Mumbai),
-Postgres 17.6, on the free plan. All 26 migrations are deployed, plus the
+Postgres 17.6, on the free plan. All 27 migrations are deployed, plus the
 `issue-college-code` and `delete-account` Edge Functions. The repo is linked
 via the Supabase CLI, so `npx supabase db push` applies new migrations directly —
 it authenticates with the stored access token and does not prompt for the database
@@ -641,10 +642,10 @@ badge (§3.1) makes this visible rather than preventing it, which is the intende
 behaviour — but it does mean "verified" means "has a college address", not "is
 currently enrolled".
 
-**Screenshot handling — DECIDED, split by Android version.**
-Android 14+ (API 34) uses `ScreenCaptureCallback`: the screenshot is allowed and
-the other person is notified. Below 14 there is no detection API, so `FLAG_SECURE`
-is set instead and screenshots are blocked outright.
+**Screenshot handling — DECIDED, split by Android version. Built, not walked on a
+device.** Android 14+ notifies via `record_screenshot()` (a system line in the
+thread). Below 14, `FLAG_SECURE` is set only while a Connected chat is open.
+DMs are not covered. `anon` cannot call the RPC (42501, live).
 
 Three implementation traps to respect when building this:
 

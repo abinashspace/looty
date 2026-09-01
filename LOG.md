@@ -15,6 +15,25 @@
 
 ---
 
+## 2026-09-01 — Screenshot notices and in-app privacy
+
+Laptop-only. Spec already decided the Android 14 vs older split.
+
+`record_screenshot(thread)` inserts a `messages.kind = screenshot` row. Clients
+cannot set `kind` (no column grant). Connected chats only; DMs no-op. One notice
+per caller per thread per minute. The other person sees “They took a screenshot
+of this chat.” On API 34+ the client listens with `expo-screen-capture` and
+calls the RPC. Below 14 it sets FLAG_SECURE while that screen is mounted and
+clears it on leave — Expo has one Activity, so this must not stay on.
+
+In-app Privacy screen at You → Privacy. Play still needs a hosted URL of
+`legal/privacy.md`.
+
+Verified: 197 tests; live `anon` → 42501 on `record_screenshot`. Not verified
+on a phone.
+
+---
+
 ## 2026-09-01 — Play listing draft, domain candidates, Google button behind env
 
 Laptop-only stretch. No phone.

@@ -67,7 +67,7 @@ live as Tier 2 on 2026-08-31.
 | 4 | Looty Match | Done — schema, tests, feed, quota, Looted-you paywall. **Verified live as Tier 2** (loot, mutual Connect, quota) |
 | 5 | Automatic moderation engine | Done — schema, tests, restriction screen and appeal form |
 | 6 | Ads + subscription | **Not started — needs AdMob and Play Console** |
-| 7 | Play Store requirements | Account deletion and notification prefs are **built**. Store listing / Play Console still needed |
+| 7 | Play Store requirements | Account deletion and notification prefs are **built**. Listing + privacy **drafted** in `legal/`. Play Console still needed |
 
 ### What exists right now
 
@@ -113,9 +113,10 @@ restriction screen with an appeal form. Report and Block sit in the chat header.
 The only remaining `Placeholder` is the "Supabase not configured" screen, which is
 meant to be one.
 
-**Not built yet:** Phase 6 (ads, Play Billing) and Phase 7's store listing,
-both parked behind paid accounts. Google Sign-In. Actual push *delivery* (Expo
-Push → FCM) — tokens and `should_notify()` exist, nothing is sent yet.
+**Not built yet:** Phase 6 (ads, Play Billing). Google Sign-In is **wired** and
+hidden until the OAuth client exists. Actual push *delivery* (Expo Push → FCM)
+— tokens and `should_notify()` exist, nothing is sent yet. Play listing copy
+and a privacy policy are drafted under `legal/`; they are not hosted.
 
 **1:1 chats can carry images.** Stored in the private `chat-images` bucket;
 `messages.image_url` holds the path, not a public URL. Connected chats do not
@@ -286,13 +287,18 @@ Notes that cost time to rediscover:
 
 ### Blocked on the user (cannot proceed without these)
 
-These require accounts and credentials that only the project owner can create:
+These require accounts and credentials that only the project owner can create.
+Step-by-step: [`legal/google-and-email.md`](legal/google-and-email.md).
 
-- Google Cloud OAuth client (for Google Sign-In)
-- An **email sending provider** for the college-email codes — Resend, SES or
-  similar. Far easier than the SMS path that was dropped: no DLT registration, no
-  business documents, and free tiers cover early volume comfortably.
-- AdMob account, Google Play Console account
+- Google Cloud OAuth **Web** client. The Sign-In button is already in the app
+  and stays hidden until `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` is set, **and**
+  the Google provider is enabled in the Supabase dashboard.
+- Resend (or SES) API key for college-email codes
+- AdMob account, Google Play Console account. Listing and privacy drafts are
+  in [`legal/`](legal/). Host `legal/privacy.md` on HTTPS before submitting.
+
+College domains to confirm: [`colleges/CANDIDATES.md`](colleges/CANDIDATES.md).
+Do not add a row to live until a student mailbox on that exact domain is real.
 
 No longer needed, since the ID path was removed: a KYC/vision vendor, and an
 SMS provider with DLT registration.

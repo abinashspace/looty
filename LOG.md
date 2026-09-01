@@ -15,6 +15,25 @@
 
 ---
 
+## 2026-09-01 — Play listing draft, domain candidates, Google button behind env
+
+Laptop-only stretch. No phone.
+
+- `legal/privacy.md` and `legal/play-listing.md` — Play Store text with the
+  friends-not-dating constraint written in. Privacy is a draft; Play needs a
+  public HTTPS URL before submit.
+- `legal/google-and-email.md` — the owner steps for Google Cloud + Resend.
+- `colleges/CANDIDATES.md` — IIT / NIT / BITS / large private guesses, all
+  `unconfirmed` except `thangavelu.edu.in`. Not inserted on live.
+- Sign-in: “Continue with Google” using `expo-auth-session` (SDK 57) and
+  `signInWithIdToken`. Hidden unless `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` is set.
+  Native `@react-native-google-signin` needs a dev build; this path works in
+  Expo Go once the Web client and the Supabase Google provider exist.
+
+Email/password is unchanged.
+
+---
+
 ## 2026-09-01 — First real college domain; Android signup reached profile setup
 
 Owner ran the app on the Realme over USB. Signed in, entered

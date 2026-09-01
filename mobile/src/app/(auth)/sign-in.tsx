@@ -1,22 +1,32 @@
 /**
  * Sign in / create account.
  *
- * Email and password for now. Google Sign-In is the intended production entry
- * point and slots in beside this without touching anything downstream — the
- * session context and tier routing never look at how you authenticated.
+ * Email and password for development. Google Sign-In is the intended production
+ * entry point and slots in beside this without touching anything downstream —
+ * the session context and tier routing never look at how you authenticated.
+ *
+ * Google only appears when EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID is set. You also
+ * have to enable the Google provider in the Supabase dashboard with the same
+ * client. Until both exist, email/password is the path.
  *
  * Note what signing in does NOT do: it does not make you a student. Any email
  * works here and lands at Tier 0. The college address is the only thing that
  * proves anything, and that is the next screen.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import * as Google from 'expo-auth-session/providers/google';
 
 import { Body, Button, Field, LinkButton, Notice, Screen, Title } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 
+WebBrowser.maybeCompleteAuthSession();
+
 type Mode = 'signIn' | 'signUp';
+
+const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ?? '';
 
 export default function SignIn() {
   const [mode, setMode] = useState<Mode>('signIn');
@@ -26,7 +36,30 @@ export default function SignIn() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  const [googleRequest, googleResponse, promptGoogle] = Google.useIdTokenAuthRequest({
+    clientId: googleWebClientId || 'disabled.apps.googleusercontent.com',
+    webClientId: googleWebClientId || 'disabled.apps.googleusercontent.com',
+  });
+
   const canSubmit = email.includes('@') && password.length >= 8;
+  const googleReady = Boolean(googleWebClientId) && googleRequest && !busy;
+
+  useEffect(() => {
+    if (googleResponse?.type !== 'success') return;
+    const idToken = googleResponse.params.id_token;
+    if (!idToken) {
+      setError('Google did not return a sign-in token.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    supabase.auth
+      .signInWithIdToken({ provider: 'google', token: idToken })
+      .then(({ error: err }) => {
+        if (err) setError(err.message);
+      })
+      .finally(() => setBusy(false));
+  }, [googleResponse]);
 
   // Clear the last failure as soon as the user changes anything. Without this a
   // stale "User already registered" sits over a freshly typed address and reads
@@ -61,6 +94,16 @@ export default function SignIn() {
     setBusy(false);
   }
 
+  async function google() {
+    setError(null);
+    setNotice(null);
+    const result = await promptGoogle();
+    if (result.type === 'cancel' || result.type === 'dismiss') return;
+    if (result.type === 'error') {
+      setError(result.error?.message ?? 'Google sign-in failed.');
+    }
+  }
+
   return (
     <Screen>
       <Title>{mode === 'signIn' ? 'Welcome back' : 'Create your account'}</Title>
@@ -70,6 +113,18 @@ export default function SignIn() {
       </Body>
 
       <View style={{ height: 8 }} />
+
+      {googleWebClientId ? (
+        <>
+          <Button
+            label="Continue with Google"
+            onPress={google}
+            loading={busy}
+            disabled={!googleReady}
+          />
+          <Body>Or use email for now.</Body>
+        </>
+      ) : null}
 
       <Field
         label="Email"

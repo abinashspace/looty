@@ -360,7 +360,8 @@ await check('empty message refused', () =>
   denied(ana, `insert into messages (thread_id, sender_id, body) values ($1,$2,'   ')`, [threadId, ana]));
 await check('image-only message allowed', () =>
   asUser(ana, () => db.query(
-    `insert into messages (thread_id, sender_id, image_url) values ($1,$2,'s3://x.jpg')`, [threadId, ana])));
+    `insert into messages (thread_id, sender_id, image_url)
+     values ($1,$2,$3)`, [threadId, ana, `${ana}/${threadId}/probe.jpg`])));
 await check('messages are not editable by anyone', async () => {
   const r = await one(`select count(*) c from information_schema.column_privileges
     where table_name='messages' and grantee='authenticated' and privilege_type='UPDATE'`);
@@ -1181,6 +1182,88 @@ await check('deleting a user takes the profile and prefs, not the ban anchor', a
 // remembering to check auth.uid().
 // ---------------------------------------------------------------------------
 
+console.log('\nPush tokens and notification honouring');
+await check('register stores a token for the caller', async () => {
+  await asUser(u1.id, () => db.query(`select register_push_token('ExponentPushToken[testtoken0001]')`));
+  eq((await one(`select user_id from push_tokens where token='ExponentPushToken[testtoken0001]'`)).user_id, u1.id);
+});
+await check('the same token moves to a new caller', async () => {
+  await asUser(u2.id, () => db.query(`select register_push_token('ExponentPushToken[testtoken0001]')`));
+  eq((await one(`select user_id from push_tokens where token='ExponentPushToken[testtoken0001]'`)).user_id, u2.id);
+  eq((await one(`select count(*) c from push_tokens where token='ExponentPushToken[testtoken0001]'`)).c, 1);
+});
+await check('unregister only removes your own token', async () => {
+  await asUser(u1.id, () => db.query(`select register_push_token('ExponentPushToken[testtoken0002]')`));
+  await asUser(u2.id, () => db.query(`select unregister_push_token('ExponentPushToken[testtoken0002]')`));
+  eq((await one(`select count(*) c from push_tokens where token='ExponentPushToken[testtoken0002]'`)).c, 1, 'stolen unregister');
+  await asUser(u1.id, () => db.query(`select unregister_push_token('ExponentPushToken[testtoken0002]')`));
+  eq((await one(`select count(*) c from push_tokens where token='ExponentPushToken[testtoken0002]'`)).c, 0);
+});
+await check('clients have no table grants on push_tokens', async () => {
+  const r = await one(`select count(*) c from information_schema.table_privileges
+    where table_name='push_tokens' and grantee in ('anon','authenticated')`);
+  eq(r.c, 0);
+});
+await check('should_notify defaults groups off and the rest on', async () => {
+  eq((await one(`select should_notify($1,'groups') x`, [u2.id])).x, false);
+  eq((await one(`select should_notify($1,'dms') x`, [u2.id])).x, true);
+});
+await check('should_notify respects a flipped pref', async () => {
+  await asUser(u1.id, () => db.query(`update notification_prefs set dms=false where user_id=$1`, [u1.id]));
+  eq((await one(`select should_notify($1,'dms') x`, [u1.id])).x, false);
+});
+await check('should_notify is not client-callable', async () => {
+  eq((await one(`select has_function_privilege('authenticated','should_notify(uuid,text)','execute') x`)).x, false);
+});
+
+console.log('\nChat images');
+const imgA = await mkUser('imga');
+const imgB = await mkUser('imgb');
+const imgC = await mkUser('imgc');
+await asUser(imgA, () =>
+  db.query(`insert into friendships (requester_id, addressee_id) values ($1,$2)`, [imgA, imgB]));
+await asUser(imgB, () =>
+  db.query(`update friendships set status='accepted' where addressee_id=$1`, [imgB]));
+const imgThread = (await asUser(imgA, () =>
+  one(`select open_dm_thread($1) id`, [imgB]))).id;
+await check('chat-images bucket is private and forbids SVG', async () => {
+  const r = await one(
+    `select public as is_public, allowed_mime_types as mime from storage.buckets where id='chat-images'`);
+  eq(r.is_public, false);
+  const mime = r.mime ?? [];
+  if (mime.includes('image/svg+xml') || mime.includes('image/svg')) {
+    throw new Error('SVG is allowed in chat-images');
+  }
+});
+await check('a participant can write a path in their own folder for that thread', async () => {
+  const path = `${imgA}/${imgThread}/ok.jpg`;
+  eq((await asUser(imgA, () => one(`select can_write_chat_image($1) x`, [path]))).x, true);
+});
+await check('cannot write into someone else\'s folder', async () => {
+  const path = `${imgA}/${imgThread}/stolen.jpg`;
+  eq((await asUser(imgB, () => one(`select can_write_chat_image($1) x`, [path]))).x, false);
+});
+await check('a non-participant cannot upload into that thread', async () => {
+  const path = `${imgC}/${imgThread}/intrude.jpg`;
+  eq((await asUser(imgC, () => one(`select can_write_chat_image($1) x`, [path]))).x, false);
+});
+await check('uploader can read their own path before a message exists', async () => {
+  const path = `${imgA}/${imgThread}/preview.jpg`;
+  eq((await asUser(imgA, () => one(`select can_read_chat_image($1) x`, [path]))).x, true);
+});
+await check('the other participant can read a path only once a message references it', async () => {
+  const path = `${imgA}/${imgThread}/shared.jpg`;
+  eq((await asUser(imgB, () => one(`select can_read_chat_image($1) x`, [path]))).x, false, 'before insert');
+  await asUser(imgA, () =>
+    db.query(`insert into messages (thread_id, sender_id, image_url) values ($1,$2,$3)`,
+      [imgThread, imgA, path]));
+  eq((await asUser(imgB, () => one(`select can_read_chat_image($1) x`, [path]))).x, true, 'after insert');
+});
+await check('an outsider cannot read a chat image path', async () => {
+  const path = `${imgA}/${imgThread}/shared.jpg`;
+  eq((await asUser(imgC, () => one(`select can_read_chat_image($1) x`, [path]))).x, false);
+});
+
 console.log('\nFunction execute privileges');
 await check('anon can execute nothing in public', async () => {
   const r = await one(`select count(*) c from pg_proc p
@@ -1222,7 +1305,9 @@ await check('the sweep leaves authenticated grants intact', async () => {
 });
 await check('the functions the app actually calls are still callable', async () => {
   for (const fn of ['current_tier()', 'match_feed(integer)', 'looted_you()', 'looted_you_count()',
-                    'join_group(group_category)', 'confirm_college_email(text)', 'open_dm_thread(uuid)']) {
+                    'join_group(group_category)', 'confirm_college_email(text)', 'open_dm_thread(uuid)',
+                    'can_read_chat_image(text)', 'can_write_chat_image(text)',
+                    'register_push_token(text)', 'unregister_push_token(text)']) {
     const r = await one(`select has_function_privilege('authenticated', $1, 'execute') x`, [fn]);
     eq(r.x, true, fn);
   }

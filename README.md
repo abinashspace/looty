@@ -14,7 +14,7 @@ group rooms, DMs, username search, friend requests, Looty Match, and the moderat
 appeal flow.
 
 It has been run on a real Android phone (USB + Expo Go 57). Correctness also
-rests on 178 database tests, typechecking, and direct calls against the live API
+rests on 192 database tests, typechecking, and direct calls against the live API
 — including as a real Tier 2 user (groups, DMs, friends, Match). A green suite is
 not proof on this project.
 

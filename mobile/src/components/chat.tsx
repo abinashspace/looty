@@ -3,12 +3,20 @@
  *
  * The list is inverted, which is how every chat app works and why "load older"
  * means appending rather than prepending. Newest is index 0.
+ *
+ * Images exist only in 1:1 chats. Groups pass no image fields and the composer
+ * hides the picker — group_messages has no image column, by design.
+ *
+ * Connected chats hide a photo behind "Tap to view" and do not fetch it until
+ * then. A blurred download is still a download; this is the same honesty as
+ * the Looted-you list. Friend DMs show the photo immediately.
  */
 
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -16,6 +24,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 
 import { useTheme } from '@/hooks/use-theme';
 
@@ -24,6 +33,7 @@ export type ChatMessage = {
   senderId: string;
   body: string | null;
   createdAt: string;
+  imageUrl?: string | null;
   /** Group threads only — omitted in 1:1, where there is only one other person. */
   senderName?: string | null;
   /** Blocked senders collapse rather than vanish; removing them orphans replies. */
@@ -39,16 +49,19 @@ export function MessageList({
   messages,
   meId,
   showSenders = false,
+  hideImagesUntilTap = false,
   loading = false,
   emptyText = 'No messages yet.',
 }: {
   messages: ChatMessage[];
   meId: string | undefined;
   showSenders?: boolean;
+  hideImagesUntilTap?: boolean;
   loading?: boolean;
   emptyText?: string;
 }) {
   const c = useTheme();
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
 
   const renderItem = useCallback(
     ({ item }: { item: ChatMessage }) => {
@@ -63,6 +76,8 @@ export function MessageList({
       }
 
       const mine = item.senderId === meId;
+      const showPhoto = Boolean(item.imageUrl) && (mine || !hideImagesUntilTap || revealed[item.id]);
+
       return (
         <View style={[styles.row, mine ? styles.rowMine : styles.rowTheirs]}>
           <View
@@ -75,7 +90,23 @@ export function MessageList({
             {showSenders && !mine && item.senderName ? (
               <Text style={[styles.sender, { color: c.accent }]}>{item.senderName}</Text>
             ) : null}
-            <Text style={[styles.body, { color: mine ? c.accentText : c.text }]}>{item.body}</Text>
+            {item.imageUrl && !showPhoto ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="View photo"
+                onPress={() => setRevealed((r) => ({ ...r, [item.id]: true }))}
+                style={[styles.hiddenPhoto, { backgroundColor: mine ? c.accentText : c.border }]}>
+                <Text style={{ color: mine ? c.accent : c.text, fontWeight: '600' }}>
+                  Photo · tap to view
+                </Text>
+              </Pressable>
+            ) : null}
+            {item.imageUrl && showPhoto ? (
+              <Image source={{ uri: item.imageUrl }} style={styles.photo} />
+            ) : null}
+            {item.body ? (
+              <Text style={[styles.body, { color: mine ? c.accentText : c.text }]}>{item.body}</Text>
+            ) : null}
             <Text
               style={[
                 styles.time,
@@ -87,7 +118,7 @@ export function MessageList({
         </View>
       );
     },
-    [c, meId, showSenders],
+    [c, meId, showSenders, hideImagesUntilTap, revealed],
   );
 
   if (loading) {
@@ -120,11 +151,15 @@ export function MessageList({
 
 export function Composer({
   onSend,
+  onSendImage,
+  allowImages = false,
   disabled = false,
   disabledReason,
   placeholder = 'Message',
 }: {
   onSend: (text: string) => Promise<string | null>;
+  onSendImage?: (uri: string, width?: number) => Promise<string | null>;
+  allowImages?: boolean;
   disabled?: boolean;
   disabledReason?: string;
   placeholder?: string;
@@ -150,6 +185,26 @@ export function Composer({
     setBusy(false);
   }
 
+  async function pickImage() {
+    if (!onSendImage || busy) return;
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      setError('Looty needs permission to open your photos.');
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.8,
+    });
+    if (res.canceled) return;
+    setBusy(true);
+    setError(null);
+    const asset = res.assets[0];
+    const err = await onSendImage(asset.uri, asset.width);
+    if (err) setError(err);
+    setBusy(false);
+  }
+
   if (disabled) {
     return (
       <SafeAreaView edges={['bottom']} style={{ backgroundColor: c.background }}>
@@ -170,6 +225,19 @@ export function Composer({
         </Text>
       ) : null}
       <View style={[styles.composer, { borderTopColor: c.border }]}>
+        {allowImages ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Send a photo"
+            onPress={pickImage}
+            disabled={busy}
+            style={({ pressed }) => [
+              styles.attach,
+              { borderColor: c.border, opacity: busy ? 0.4 : pressed ? 0.7 : 1 },
+            ]}>
+            <Text style={{ color: c.text, fontSize: 18 }}>＋</Text>
+          </Pressable>
+        ) : null}
         <TextInput
           value={text}
           onChangeText={setText}
@@ -215,6 +283,15 @@ const styles = StyleSheet.create({
   sender: { fontSize: 12, fontWeight: '700', marginBottom: 1 },
   body: { fontSize: 15.5, lineHeight: 21 },
   time: { fontSize: 11, alignSelf: 'flex-end' },
+  photo: { width: 220, height: 220, borderRadius: 10, marginBottom: 4 },
+  hiddenPhoto: {
+    width: 220,
+    height: 140,
+    borderRadius: 10,
+    marginBottom: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   blockedRow: { alignItems: 'center', paddingVertical: 4 },
   blockedText: { fontSize: 12, fontStyle: 'italic' },
   composer: {
@@ -225,6 +302,14 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 6,
     borderTopWidth: 1,
+  },
+  attach: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   input: {
     flex: 1,

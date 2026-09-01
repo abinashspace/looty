@@ -9,7 +9,7 @@
 > also get a dated entry in [`LOG.md`](LOG.md), which is append-only and never
 > edited. CONTEXT = what is true now. LOG = how it got that way.
 >
-> Last updated: 2026-08-31
+> Last updated: 2026-09-01
 
 ---
 
@@ -72,7 +72,7 @@ live as Tier 2 on 2026-08-31.
 ### What exists right now
 
 ```
-supabase/migrations/   24 migrations. Phase 1: colleges + domain allowlist,
+supabase/migrations/   26 migrations. Phase 1: colleges + domain allowlist,
                        profiles, verifications + bans + access gate, RLS +
                        column grants. Phase 2: blocks + friendships, threads +
                        messages, reports, Phase 2 RLS. Then: college email
@@ -86,14 +86,16 @@ supabase/migrations/   24 migrations. Phase 1: colleges + domain allowlist,
                        my_threads() + realtime publication, match filter
                        grants + my_match_prefs(), friend discovery,
                        function lockdown sweep, function-create grants fix,
-                       notification_prefs, username trigger SECURITY DEFINER
+                       notification_prefs, username trigger SECURITY DEFINER,
+                       chat-images bucket, push_tokens
 supabase/functions/    issue-college-code, delete-account (both deployed)
-supabase/tests/run.mjs 178 behaviour tests, run with `npm run test:db`
+supabase/tests/run.mjs 192 behaviour tests, run with `npm run test:db`
 supabase/seed.sql      sample colleges; domain list deliberately EMPTY
 mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/lib/tiers.ts     client mirror of the server tier gate — NOT security
   src/lib/session.tsx  auth session + profile + signup step resolution
   src/lib/supabase.ts  client; degrades to a setup screen when .env is absent
+  src/lib/chat-image.ts  private upload + signed URL for 1:1 photos
   src/components/ui.tsx  Screen / Field / Button / Notice / Toggle — the whole kit
   src/components/chat.tsx  MessageList + Composer, shared by groups and DMs
   src/app/(auth)/      sign-in, verify, college, profile-setup — all REAL
@@ -112,13 +114,13 @@ The only remaining `Placeholder` is the "Supabase not configured" screen, which 
 meant to be one.
 
 **Not built yet:** Phase 6 (ads, Play Billing) and Phase 7's store listing,
-both parked behind paid accounts. Google Sign-In. `push_tokens` / actual push
-delivery — the preference rows exist, nothing sends yet.
+both parked behind paid accounts. Google Sign-In. Actual push *delivery* (Expo
+Push → FCM) — tokens and `should_notify()` exist, nothing is sent yet.
 
-**Messages are text-only in the client so far.** The schema supports images in DMs
-and Connected chats (`messages.image_url`), and the spec calls for blur-by-default
-in Connected chats — none of that is built yet. Group messages are text-only by
-design and always will be.
+**1:1 chats can carry images.** Stored in the private `chat-images` bucket;
+`messages.image_url` holds the path, not a public URL. Connected chats do not
+fetch the file until the recipient taps ("Photo · tap to view") — a blurred
+download is still a download. Friend DMs show immediately. Groups stay text-only.
 
 **Development auth is email/password.** Google Sign-In is the intended production
 entry point and drops in beside it — nothing downstream looks at how you
@@ -130,17 +132,19 @@ Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
 
 ### Verified so far
 
-`npm run test:db` passes 178/178. `npx tsc --noEmit` is clean. The UI has rendered
-on a real Android device (2026-08-31) and once in a browser (2026-08-30).
+`npm run test:db` passes 192/192. `npx tsc --noEmit` is clean. The UI has rendered
+on a real Android device (2026-08-31) and once in a browser (2026-08-30). Chat
+images and push-token RPCs were verified against the live API on 2026-09-01;
+the image picker itself has not been tapped on a device.
 
 The Phase 2 tests run as an actual `authenticated` role with a JWT claim set, so
 RLS genuinely applies to them. Phase 1 tests run as superuser and therefore check
 grant *metadata* rather than live enforcement — a weaker guarantee, worth knowing
 when reading them.
 
-**Against the live database:** all 23 tables exist, and every one of them refuses
+**Against the live database:** all 24 tables exist, and every one of them refuses
 the `anon` role outright (`42501 permission denied`). Re-checked for
-`notification_prefs` on 2026-08-31. That matters more than it looks — the anon
+`notification_prefs` and `push_tokens` on 2026-09-01. That matters more than it looks — the anon
 key ships inside the APK and anyone can extract it in a minute, so "anon can
 read nothing" is the property that keeps the whole database private.
 
@@ -217,7 +221,7 @@ returned `42501` then succeeded, and `match_feed` showed the other test student.
 ### Live infrastructure
 
 **Supabase project `zsfjwlmeeodsiwruvine`**, region `ap-south-1` (Mumbai),
-Postgres 17.6, on the free plan. All 24 migrations are deployed, plus the
+Postgres 17.6, on the free plan. All 26 migrations are deployed, plus the
 `issue-college-code` and `delete-account` Edge Functions. The repo is linked
 via the Supabase CLI, so `npx supabase db push` applies new migrations directly —
 it authenticates with the stored access token and does not prompt for the database
@@ -579,13 +583,17 @@ appeals             id, ban_id(unique), user_id, body, status
 banned_identities   hash, kind  -- ban anchor; survives account deletion
 notification_prefs  user_id, dms, friend_requests, connections, groups
                     -- own-row only; delivery is not wired yet
+push_tokens         token, user_id  -- Expo tokens; no client table grants
 ```
 
-That is **all 23 tables**, verified against the live database on 2026-08-31.
-**`push_tokens` has never been built.** Account deletion is an Edge Function
-(`delete-account`), not a table: it calls the Auth Admin API, removes avatars,
-re-asserts a permanent-ban hash if needed, then deletes `auth.users`. The cascade
-takes the rest. `banned_identities` has no `user_id` on purpose.
+That is **all 24 tables**, verified against the live database on 2026-09-01.
+Account deletion is an Edge Function (`delete-account`): Auth Admin API, removes
+avatars and chat-images, re-asserts a permanent-ban hash if needed, then deletes
+`auth.users`. The cascade takes the rest. `banned_identities` has no `user_id`
+on purpose.
+
+Storage buckets: `avatars` (public-read, DPs) and `chat-images` (private,
+participant-read via signed URL).
 
 ### The rule that matters most
 

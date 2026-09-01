@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Composer, MessageList, type ChatMessage } from '@/components/chat';
 import { useTheme } from '@/hooks/use-theme';
+import { signedChatImageUrl, uploadChatImage } from '@/lib/chat-image';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 
@@ -41,21 +42,29 @@ export default function Chat() {
       supabase.rpc('my_threads'),
       supabase
         .from('messages')
-        .select('id, sender_id, body, created_at')
+        .select('id, sender_id, body, image_url, created_at')
         .eq('thread_id', id)
         .order('created_at', { ascending: false })
         .limit(100),
     ]);
 
     setThread(((threads as Thread[]) ?? []).find((t) => t.thread_id === id) ?? null);
-    setMessages(
-      (msgs ?? []).map((m) => ({
-        id: m.id as string,
-        senderId: m.sender_id as string,
-        body: (m.body as string | null) ?? null,
-        createdAt: m.created_at as string,
-      })),
+
+    const mapped = await Promise.all(
+      (msgs ?? []).map(async (m) => {
+        const path = (m.image_url as string | null) ?? null;
+        const imageUrl =
+          path && !path.startsWith('http') ? await signedChatImageUrl(path) : path;
+        return {
+          id: m.id as string,
+          senderId: m.sender_id as string,
+          body: (m.body as string | null) ?? null,
+          imageUrl,
+          createdAt: m.created_at as string,
+        };
+      }),
     );
+    setMessages(mapped);
     setLoading(false);
   }, [id]);
 
@@ -78,6 +87,12 @@ export default function Chat() {
     };
   }, [id, load]);
 
+  function sendError(code?: string, message?: string) {
+    return code === '42501'
+      ? 'You cannot send messages in this chat any more.'
+      : (message ?? 'Could not send.');
+  }
+
   async function send(body: string): Promise<string | null> {
     const { error } = await supabase
       .from('messages')
@@ -88,9 +103,29 @@ export default function Chat() {
     }
     // The database re-checks tier, ban, block and thread state at send time, so a
     // refusal here usually means something changed since the thread was opened.
-    return error.code === '42501'
-      ? 'You cannot send messages in this chat any more.'
-      : error.message;
+    return sendError(error.code, error.message);
+  }
+
+  async function sendImage(uri: string, width?: number): Promise<string | null> {
+    if (!session?.user.id || !id) return 'Not signed in.';
+    try {
+      const path = await uploadChatImage({
+        userId: session.user.id,
+        threadId: id,
+        uri,
+        sourceWidth: width,
+      });
+      const { error } = await supabase.from('messages').insert({
+        thread_id: id,
+        sender_id: session.user.id,
+        image_url: path,
+      });
+      if (error) return sendError(error.code, error.message);
+      await load();
+      return null;
+    } catch (e) {
+      return e instanceof Error ? e.message : 'Could not send the photo.';
+    }
   }
 
   function confirmBlock() {
@@ -166,12 +201,15 @@ export default function Chat() {
       <MessageList
         messages={messages}
         meId={session?.user.id}
+        hideImagesUntilTap={thread?.type === 'connection'}
         loading={loading}
         emptyText="No messages yet."
       />
 
       <Composer
         onSend={send}
+        onSendImage={sendImage}
+        allowImages
         disabled={ended}
         disabledReason="This chat has ended."
       />

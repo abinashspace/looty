@@ -74,10 +74,20 @@ Deno.serve(async (req) => {
     );
   }
 
-  const { data: files } = await admin.storage.from('avatars').list(userId);
-  if (files?.length) {
-    await admin.storage.from('avatars').remove(files.map((f) => `${userId}/${f.name}`));
+  async function removePrefix(bucket: string, prefix: string) {
+    const { data } = await admin.storage.from(bucket).list(prefix);
+    if (!data?.length) return;
+    const files: string[] = [];
+    for (const item of data) {
+      const path = prefix ? `${prefix}/${item.name}` : item.name;
+      if (item.id) files.push(path);
+      else await removePrefix(bucket, path);
+    }
+    if (files.length) await admin.storage.from(bucket).remove(files);
   }
+
+  await removePrefix('avatars', userId);
+  await removePrefix('chat-images', userId);
 
   const { error: delErr } = await admin.auth.admin.deleteUser(userId);
   if (delErr) return json({ error: 'could_not_delete', detail: delErr.message }, 500);

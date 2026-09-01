@@ -15,6 +15,40 @@
 
 ---
 
+## 2026-09-01 — Chat images (private bucket) and push token plumbing
+
+USB was not available (owner at college). Built the two largest remaining pieces
+that do not need a phone.
+
+**Chat images.** `messages.image_url` existed since migration 6 and nothing
+wrote it. New private bucket `chat-images`, path
+`<user_id>/<thread_id>/<uuid>.jpg`. Write requires `can_post_to_thread` on the
+path's thread. Read is the uploader, or a participant of a thread that already
+references the object — so the other person cannot mint a signed URL until the
+message row exists. No SVG. Groups unchanged (no image column).
+
+Connected chats do **not** fetch the file until "Photo · tap to view". Same
+honesty as Looted-you: a blurred download is still a download. Friend DMs show
+immediately. `delete-account` now walks `chat-images/<user_id>/` as well as
+avatars.
+
+**Verified live**, not just pglite: `anon` gets 42501 on the helpers;
+participant A uploaded a JPEG; B's signed URL was 404 until the message insert,
+then 200; outsider C still 404; `can_write_chat_image` false for C. Three
+throwaway accounts deleted. One leftover object was removed via `storage rm`.
+The picker has not been tapped on a device.
+
+**Push tokens.** Table has no client grants. `register_push_token` /
+`unregister_push_token` are the only path; the same token moves to a new
+account on the same phone. `should_notify(user, kind)` honours prefs (groups
+off by default) and is **not** client-callable — a client asking whether
+someone else wants DMs would be a probe. Nothing is sent yet; Expo Push still
+needs USB to prove a notification actually appears.
+
+192 tests. 26 migrations. 24 tables.
+
+---
+
 ## 2026-08-31 — The app ran on Android for the first time
 
 Realme RMX3771 over USB. Expo Go 57.0.9 sideloaded (Play Store copy is the wrong

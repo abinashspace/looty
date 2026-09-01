@@ -12,6 +12,7 @@
 
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 
+import { jpegBytesFromUri } from './jpeg-bytes';
 import { supabase } from './supabase';
 
 const MAX_PX = 1080;
@@ -36,11 +37,11 @@ export async function uploadChatImage(opts: {
   sourceWidth?: number;
 }): Promise<string> {
   const local = await downscaleChatImage(opts.uri, opts.sourceWidth);
-  const blob = await (await fetch(local)).blob();
+  const bytes = await jpegBytesFromUri(local);
   const path = `${opts.userId}/${opts.threadId}/${crypto.randomUUID()}.jpg`;
   const { error } = await supabase.storage
     .from('chat-images')
-    .upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+    .upload(path, bytes, { contentType: 'image/jpeg', upsert: false });
   if (error) throw new Error(error.message);
   return path;
 }

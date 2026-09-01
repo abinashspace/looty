@@ -17,6 +17,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Body, Button, Field, Notice, Screen, Title } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/lib/session';
+import { jpegBytesFromUri } from '@/lib/jpeg-bytes';
 import { supabase } from '@/lib/supabase';
 
 // A DP is never displayed larger than a Match card, so pixels beyond this are
@@ -111,10 +112,10 @@ export default function ProfileSetup() {
         // Path must start with the user's own id — storage policy keys on the first
         // folder segment, so anything else is refused.
         const path = `${session.user.id}/dp.jpg`;
-        const blob = await (await fetch(photo)).blob();
+        const bytes = await jpegBytesFromUri(photo);
         const { error: upErr } = await supabase.storage
           .from('avatars')
-          .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+          .upload(path, bytes, { contentType: 'image/jpeg', upsert: true });
         if (upErr) throw new Error(upErr.message);
         dpUrl = supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl;
       }

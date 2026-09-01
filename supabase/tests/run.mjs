@@ -292,6 +292,15 @@ await check('authenticated user is still refused a reserved username', async () 
     `insert into auth.users (email) values ('resname@gmail.com') returning id`);
   await denied(u.id, `update profiles set username='admin' where id=$1`, [u.id]);
 });
+await check('onboarding completes without a profile photo', async () => {
+  const { rows: [u] } = await db.query(
+    `insert into auth.users (email) values ('nophoto@gmail.com') returning id`);
+  await db.query(
+    `update profiles set username='nophoto_u', display_name='No Photo',
+       course_years=4, start_year=2024 where id=$1`, [u.id]);
+  eq((await one(`select onboarding_complete c, dp_url d from profiles where id=$1`, [u.id])).c, true);
+  eq((await one(`select dp_url d from profiles where id=$1`, [u.id])).d ?? 'null', 'null');
+});
 
 // Fresh cast: three verified students, all old enough to report.
 const users = {};

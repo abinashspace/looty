@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-09-01 — Profile photo is optional
+
+Owner rejected required faces: privacy / anonymity, and a face-feed is
+dating-shaped. College email remains the proof. `onboarding_complete` no longer
+waits on `dp_url`. Signup copy says the photo is optional. Match already
+rendered an empty block when `dp_url` was null.
+
+---
+
 ## 2026-09-01 — Screenshot notices and in-app privacy
 
 Laptop-only. Spec already decided the Android 14 vs older split.

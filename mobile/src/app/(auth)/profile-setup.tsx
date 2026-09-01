@@ -77,7 +77,7 @@ export default function ProfileSetup() {
   }, [username]);
 
   const ready =
-    USERNAME_RE.test(username) && displayName.trim().length > 0 && courseIdx !== null && !!photo;
+    USERNAME_RE.test(username) && displayName.trim().length > 0 && courseIdx !== null;
 
   const pickPhoto = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -101,22 +101,23 @@ export default function ProfileSetup() {
   }, []);
 
   async function save() {
-    if (!session?.user.id || courseIdx === null || !photo) return;
+    if (!session?.user.id || courseIdx === null) return;
     setBusy(true);
     setError(null);
 
     try {
-      // Path must start with the user's own id — storage policy keys on the first
-      // folder segment, so anything else is refused.
-      const path = `${session.user.id}/dp.jpg`;
-      const blob = await (await fetch(photo)).blob();
-
-      const { error: upErr } = await supabase.storage
-        .from('avatars')
-        .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
-      if (upErr) throw new Error(upErr.message);
-
-      const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
+      let dpUrl: string | undefined;
+      if (photo) {
+        // Path must start with the user's own id — storage policy keys on the first
+        // folder segment, so anything else is refused.
+        const path = `${session.user.id}/dp.jpg`;
+        const blob = await (await fetch(photo)).blob();
+        const { error: upErr } = await supabase.storage
+          .from('avatars')
+          .upload(path, blob, { contentType: 'image/jpeg', upsert: true });
+        if (upErr) throw new Error(upErr.message);
+        dpUrl = supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl;
+      }
 
       const { error: dbErr } = await supabase
         .from('profiles')
@@ -125,7 +126,7 @@ export default function ProfileSetup() {
           display_name: displayName.trim(),
           course_years: COURSES[courseIdx].years,
           start_year: new Date().getFullYear(),
-          dp_url: pub.publicUrl,
+          ...(dpUrl ? { dp_url: dpUrl } : {}),
         })
         .eq('id', session.user.id);
       if (dbErr) throw new Error(dbErr.message);
@@ -143,7 +144,10 @@ export default function ProfileSetup() {
   return (
     <Screen>
       <Title>Set up your profile</Title>
-      <Body>This is what other students see. You can change your name and photo later.</Body>
+      <Body>
+        Username and display name are what other students see. A photo is optional
+        — Looty does not require a face.
+      </Body>
 
       <Pressable onPress={pickPhoto} style={styles.photoRow} accessibilityRole="button">
         <View
@@ -154,11 +158,11 @@ export default function ProfileSetup() {
           {photo ? (
             <Image source={{ uri: photo }} style={styles.photoImg} />
           ) : (
-            <Text style={{ color: c.textSecondary, fontSize: 12 }}>Add photo</Text>
+            <Text style={{ color: c.textSecondary, fontSize: 12 }}>Optional</Text>
           )}
         </View>
         <Text style={{ color: c.accent, fontWeight: '600' }}>
-          {photo ? 'Change photo' : 'Choose a photo'}
+          {photo ? 'Change photo' : 'Add a photo (optional)'}
         </Text>
       </Pressable>
 

@@ -73,7 +73,7 @@ live as Tier 2 on 2026-08-31.
 ### What exists right now
 
 ```
-supabase/migrations/   27 migrations. Phase 1: colleges + domain allowlist,
+supabase/migrations/   28 migrations. Phase 1: colleges + domain allowlist,
                        profiles, verifications + bans + access gate, RLS +
                        column grants. Phase 2: blocks + friendships, threads +
                        messages, reports, Phase 2 RLS. Then: college email
@@ -90,7 +90,7 @@ supabase/migrations/   27 migrations. Phase 1: colleges + domain allowlist,
                        notification_prefs, username trigger SECURITY DEFINER,
                        chat-images bucket, push_tokens, screenshot notices
 supabase/functions/    issue-college-code, delete-account (both deployed)
-supabase/tests/run.mjs 197 behaviour tests, run with `npm run test:db`
+supabase/tests/run.mjs 198 behaviour tests, run with `npm run test:db`
 supabase/seed.sql      sample colleges; domain list deliberately EMPTY
 mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/lib/tiers.ts     client mirror of the server tier gate — NOT security
@@ -134,7 +134,7 @@ Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
 
 ### Verified so far
 
-`npm run test:db` passes 197/197. `npx tsc --noEmit` is clean. The UI has rendered
+`npm run test:db` passes 198/198. `npx tsc --noEmit` is clean. The UI has rendered
 on a real Android device (2026-08-31) and once in a browser (2026-08-30). Chat
 images and push-token RPCs were verified against the live API on 2026-09-01;
 the image picker itself has not been tapped on a device.
@@ -223,7 +223,7 @@ returned `42501` then succeeded, and `match_feed` showed the other test student.
 ### Live infrastructure
 
 **Supabase project `zsfjwlmeeodsiwruvine`**, region `ap-south-1` (Mumbai),
-Postgres 17.6, on the free plan. All 27 migrations are deployed, plus the
+Postgres 17.6, on the free plan. All 28 migrations are deployed, plus the
 `issue-college-code` and `delete-account` Edge Functions. The repo is linked
 via the Supabase CLI, so `npx supabase db push` applies new migrations directly —
 it authenticates with the stored access token and does not prompt for the database
@@ -313,7 +313,10 @@ decision recorded in LOG.md.
 
 ### 3.1 Profile
 
-- **Profile picture required** at signup. Looty Match does not work without faces.
+- **Profile picture optional.** College email is the identity proof. A required
+  face fought anonymity and the friends-not-dating position (owner, 2026-09-01).
+  Match cards show a photo if someone added one; otherwise username and display
+  name only.
 - **Display name** is entered by the user. With the ID path gone there is no
   document to take a legal name from, so nothing verifies it — the college email is
   what proves someone is a student, not their name. `profiles.full_name` is dormant
@@ -478,7 +481,8 @@ reinstating the ID path is a decision rather than a migration.
    Offer this before anything else — it is free, instant, and costs nothing to run.
 4. **No college email at all** → they stay Tier 0, read groups, and can **request
    their college**.
-5. **Profile setup** (Tier 2 only): username, display name, DP, course length.
+5. **Profile setup** (Tier 2 only): username, display name, course length.
+   Photo is optional.
 
 ### 4.4 Code handling
 

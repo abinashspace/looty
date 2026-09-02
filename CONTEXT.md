@@ -9,7 +9,7 @@
 > also get a dated entry in [`LOG.md`](LOG.md), which is append-only and never
 > edited. CONTEXT = what is true now. LOG = how it got that way.
 >
-> Last updated: 2026-09-01
+> Last updated: 2026-09-02
 
 ---
 
@@ -76,7 +76,7 @@ live as Tier 2 on 2026-08-31.
 ### What exists right now
 
 ```
-supabase/migrations/   33 migrations. Phase 1: colleges + domain allowlist,
+supabase/migrations/   34 migrations. Phase 1: colleges + domain allowlist,
                        profiles, verifications + bans + access gate, RLS +
                        column grants. Phase 2: blocks + friendships, threads +
                        messages, reports, Phase 2 RLS. Then: college email
@@ -93,9 +93,10 @@ supabase/migrations/   33 migrations. Phase 1: colleges + domain allowlist,
                        notification_prefs, username trigger SECURITY DEFINER,
                        chat-images bucket, push_tokens, screenshot notices,
                        group-message 30-day purge, export_my_data,
-                       connection-end closes thread, unfriend ends DM, my_blocks
+                       connection-end closes thread, unfriend ends DM, my_blocks,
+                       thread_reads + inbox unread
 supabase/functions/    issue-college-code, delete-account (both deployed)
-supabase/tests/run.mjs 210 behaviour tests, run with `npm run test:db`
+supabase/tests/run.mjs 215 behaviour tests, run with `npm run test:db`
 supabase/seed.sql      sample colleges; domain list deliberately EMPTY
 mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/lib/tiers.ts     client mirror of the server tier gate — NOT security
@@ -146,7 +147,7 @@ Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
 
 ### Verified so far
 
-`npm run test:db` passes 210/210. `npx tsc --noEmit` is clean. The UI has rendered
+`npm run test:db` passes 215/215. `npx tsc --noEmit` is clean. The UI has rendered
 on a real Android device (2026-08-31, again 2026-09-01 through profile, groups,
 and a Study send) and once in a browser (2026-08-30). Chat images and push-token
 RPCs were verified against the live API on 2026-09-01; the 1:1 image picker has
@@ -157,7 +158,7 @@ RLS genuinely applies to them. Phase 1 tests run as superuser and therefore chec
 grant *metadata* rather than live enforcement — a weaker guarantee, worth knowing
 when reading them.
 
-**Against the live database:** all 24 tables exist, and every one of them refuses
+**Against the live database:** all 25 tables exist, and every one of them refuses
 the `anon` role outright (`42501 permission denied`). Re-checked for
 `notification_prefs` and `push_tokens` on 2026-09-01. That matters more than it looks — the anon
 key ships inside the APK and anyone can extract it in a minute, so "anon can
@@ -236,7 +237,7 @@ returned `42501` then succeeded, and `match_feed` showed the other test student.
 ### Live infrastructure
 
 **Supabase project `zsfjwlmeeodsiwruvine`**, region `ap-south-1` (Mumbai),
-Postgres 17.6, on the free plan. All 28 migrations are deployed, plus the
+Postgres 17.6, on the free plan. All 34 migrations are deployed, plus the
 `issue-college-code` and `delete-account` Edge Functions. The repo is linked
 via the Supabase CLI, so `npx supabase db push` applies new migrations directly —
 it authenticates with the stored access token and does not prompt for the database
@@ -622,9 +623,13 @@ notification_prefs  user_id, dms, friend_requests, connections, groups
                     -- own-row only; delivery is not wired yet
 push_tokens         token, user_id  -- Expo tokens; no client table grants;
                     -- client RPCs register/unregister; Expo Go cannot mint one
+thread_reads        thread_id, user_id, last_read_at
+                    -- caller-only; no client table grants; mark_thread_read RPC.
+                    -- unread in my_threads is "they wrote since I opened", not a
+                    -- receipt the other person can see
 ```
 
-That is **all 24 tables**, verified against the live database on 2026-09-01.
+That is **all 25 tables**, verified against the live database on 2026-09-02.
 Account deletion is an Edge Function (`delete-account`): Auth Admin API, removes
 avatars and chat-images, re-asserts a permanent-ban hash if needed, then deletes
 `auth.users`. The cascade takes the rest. `banned_identities` has no `user_id`
@@ -704,7 +709,8 @@ That is accepted; RLS still enforces them.
 Flag if any of these are wrong: image blur in connected chats; non-personalised ads
 app-wide; college-scope and same-gender filters in Match; unmatch/leave; message
 retention (DMs indefinite, groups 30-day rolling); notification granularity; typing
-indicators yes, read receipts in DMs only, no last-seen.
+indicators yes, read receipts in DMs only, no last-seen. Inbox unread (you have
+not opened since they last wrote) is built; that is not a read receipt.
 
 **Rejected, do not revisit without a decision:** invite-based vouching (verified
 students inviting others) was considered and declined.

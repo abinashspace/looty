@@ -7,7 +7,7 @@
  */
 
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -29,6 +29,7 @@ type Thread = {
   last_image: boolean | null;
   last_at: string;
   ended_at: string | null;
+  unread: boolean;
 };
 
 export default function Chats() {
@@ -57,6 +58,25 @@ export default function Chats() {
       load();
     }, [load]),
   );
+
+  useEffect(() => {
+    const channel = supabase
+      .channel('chats-inbox')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages' },
+        () => load(),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'friendships' },
+        () => load(),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [load]);
 
   if (!can('directMessage', tier, isBanned)) {
     return (
@@ -126,6 +146,11 @@ export default function Chats() {
           renderItem={({ item }) => (
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel={
+                item.unread
+                  ? `Unread chat with ${item.other_display_name ?? item.other_username ?? 'Someone'}`
+                  : undefined
+              }
               onPress={() => router.push(`/(app)/chats/${item.thread_id}`)}
               style={({ pressed }) => [styles.row, { opacity: pressed ? 0.7 : 1 }]}>
               <Avatar
@@ -137,7 +162,9 @@ export default function Chats() {
 
               <View style={{ flex: 1, gap: 2 }}>
                 <View style={styles.nameRow}>
-                  <Text style={[styles.name, { color: c.text }]} numberOfLines={1}>
+                  <Text
+                    style={[styles.name, { color: c.text, fontWeight: item.unread ? '700' : '600' }]}
+                    numberOfLines={1}>
                     {item.other_display_name ?? item.other_username ?? 'Someone'}
                   </Text>
                   {item.type === 'connection' ? (
@@ -146,7 +173,13 @@ export default function Chats() {
                     </View>
                   ) : null}
                 </View>
-                <Text style={{ color: c.textSecondary, fontSize: 14 }} numberOfLines={1}>
+                <Text
+                  style={{
+                    color: item.unread ? c.text : c.textSecondary,
+                    fontSize: 14,
+                    fontWeight: item.unread ? '600' : '400',
+                  }}
+                  numberOfLines={1}>
                   {item.ended_at
                     ? 'This chat has ended'
                     : item.last_image && !item.last_body
@@ -154,6 +187,13 @@ export default function Chats() {
                       : (item.last_body ?? 'Say hello')}
                 </Text>
               </View>
+              {item.unread ? (
+                <View
+                  accessibilityElementsHidden
+                  importantForAccessibility="no"
+                  style={[styles.unreadDot, { backgroundColor: c.accent }]}
+                />
+              ) : null}
             </Pressable>
           )}
         />
@@ -177,6 +217,7 @@ const styles = StyleSheet.create({
   h1: { fontSize: 28, fontWeight: '700', letterSpacing: -0.5 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  name: { fontSize: 16, fontWeight: '600', flexShrink: 1 },
+  name: { fontSize: 16, flexShrink: 1 },
   tag: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+  unreadDot: { width: 10, height: 10, borderRadius: 5 },
 });

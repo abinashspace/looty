@@ -1100,6 +1100,42 @@ await check('the other participant sees the same thread from their side', async 
   eq(rows.length, 1);
   eq(rows[0].other_id, ivy, 'other participant should be ivy from jon’s side');
 });
+await check('a message is unread for the recipient, not the sender', async () => {
+  const ivyRow = await asUser(ivy, async () => (await db.query(`select unread from my_threads()`)).rows[0]);
+  const jonRow = await asUser(jon, async () => (await db.query(`select unread from my_threads()`)).rows[0]);
+  eq(ivyRow.unread, false, 'sender should not see their own last message as unread');
+  eq(jonRow.unread, true, 'recipient should see unread until they open the chat');
+});
+await check('mark_thread_read clears unread for the caller only', async () => {
+  const tid = (await asUser(jon, async () => (await db.query(`select thread_id from my_threads()`)).rows[0])).thread_id;
+  await asUser(jon, () => db.query(`select mark_thread_read($1)`, [tid]));
+  eq((await asUser(jon, async () => (await db.query(`select unread from my_threads()`)).rows[0])).unread, false, 'jon after mark');
+  eq((await asUser(ivy, async () => (await db.query(`select unread from my_threads()`)).rows[0])).unread, false, 'ivy still not unread');
+});
+await check('a later message from them is unread again', async () => {
+  const tid = (await asUser(ivy, async () => (await db.query(`select thread_id from my_threads()`)).rows[0])).thread_id;
+  await asUser(ivy, () => db.query(
+    `insert into messages (thread_id, sender_id, body) values ($1,$2,'second message')`, [tid, ivy]));
+  eq((await asUser(jon, async () => (await db.query(`select unread, last_body from my_threads()`)).rows[0])).unread, true, 'jon after second');
+  eq((await asUser(ivy, async () => (await db.query(`select unread from my_threads()`)).rows[0])).unread, false, 'ivy sent it');
+});
+await check('a stranger cannot mark a thread read', async () => {
+  const tid = (await asUser(ivy, async () => (await db.query(`select thread_id from my_threads()`)).rows[0])).thread_id;
+  await asUser(kip, async () => {
+    try {
+      await db.query(`select mark_thread_read($1)`, [tid]);
+      throw new Error('expected rejection (not_participant) but it succeeded');
+    } catch (e) {
+      if (e.message.startsWith('expected rejection')) throw e;
+      if (!e.message.includes('not_participant')) throw new Error(`wrong error: ${e.message}`);
+    }
+  });
+});
+await check('clients have no table grants on thread_reads', async () => {
+  const r = await one(`select count(*) c from information_schema.table_privileges
+    where table_name='thread_reads' and grantee in ('anon','authenticated')`);
+  eq(r.c, 0);
+});
 await check('an uninvolved user sees nothing', async () => {
   const rows = await asUser(kip, async () => (await db.query(`select * from my_threads()`)).rows);
   eq(rows.length, 0);
@@ -1458,7 +1494,8 @@ await check('the functions the app actually calls are still callable', async () 
                     'join_group(group_category)', 'confirm_college_email(text)', 'open_dm_thread(uuid)',
                     'can_read_chat_image(text)', 'can_write_chat_image(text)',
                     'register_push_token(text)', 'unregister_push_token(text)',
-                    'record_screenshot(uuid)', 'export_my_data()', 'my_blocks()']) {
+                    'record_screenshot(uuid)', 'export_my_data()', 'my_blocks()',
+                    'mark_thread_read(uuid)']) {
     const r = await one(`select has_function_privilege('authenticated', $1, 'execute') x`, [fn]);
     eq(r.x, true, fn);
   }

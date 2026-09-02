@@ -6,7 +6,7 @@
  * a menu costs exactly the wrong person exactly the wrong amount of time.
  */
 
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -68,11 +68,15 @@ export default function Chat() {
     );
     setMessages(mapped);
     setLoading(false);
+    // Last-read is only for the caller. The other person never sees a tick.
+    await supabase.rpc('mark_thread_read', { p_thread: id });
   }, [id]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
 
   useEffect(() => {
     if (!id) return;

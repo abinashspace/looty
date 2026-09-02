@@ -15,6 +15,20 @@
 
 ---
 
+## 2026-09-02 — Inbox unread, not a read receipt
+
+Chats did not refresh while you sat on the list, and there was no unread
+state. `thread_reads` stores the caller's last-open time (no client grants).
+`mark_thread_read` writes it; `my_threads` returns `unread` when the last
+message is from the other person and newer than that. Opening a chat marks
+it. The inbox shows a dot and bold preview, and live-reloads on new
+messages and friendship changes. The other person never sees a tick.
+
+**Why.** CONTEXT listed read receipts as unconfirmed. This is only "did I
+open this since they last wrote."
+
+---
+
 ## 2026-09-01 — Friends list
 
 `my_friends()` existed with no screen. Chats → Friends (and You → Friends)

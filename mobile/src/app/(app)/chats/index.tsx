@@ -81,6 +81,12 @@ export default function Chats() {
           <View style={{ flex: 1 }} />
           <Pressable
             accessibilityRole="button"
+            onPress={() => router.push('/(app)/chats/friends')}
+            hitSlop={8}>
+            <Text style={{ color: c.accent, fontSize: 15, fontWeight: '600' }}>Friends</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
             accessibilityLabel="Find people"
             onPress={() => router.push('/(app)/chats/search')}
             hitSlop={8}>
@@ -158,7 +164,7 @@ export default function Chats() {
 
 const styles = StyleSheet.create({
   page: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 6, gap: 12 },
-  titleRow: { flexDirection: 'row', alignItems: 'center' },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
   requests: {
     flexDirection: 'row',
     alignItems: 'center',

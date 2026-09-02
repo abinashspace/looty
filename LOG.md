@@ -15,6 +15,14 @@
 
 ---
 
+## 2026-09-01 — Friends list
+
+`my_friends()` existed with no screen. Chats → Friends (and You → Friends)
+lists accepted friends and opens or creates the DM. Search remains how you
+add someone new.
+
+---
+
 ## 2026-09-01 — Blocked list and Unblock
 
 You could block from chats and groups and never undo it: blocked profiles are

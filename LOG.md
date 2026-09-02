@@ -15,6 +15,17 @@
 
 ---
 
+## 2026-09-01 — Optional gender and Match same-gender filter
+
+Gender was in the schema and `match_same_gender_only` was in the feed, but
+nothing collected gender and Match never showed the toggle. Setup and Edit
+profile take an optional gender (woman / man / non-binary / prefer not to
+say). Match has "Same gender" next to college scope. Turning it on without a
+gender set points at Edit profile. Removing a photo is on Edit profile.
+Copy stays a safety filter, not a dating preference.
+
+---
+
 ## 2026-09-01 — Unfriend ends the DM; cancel request from search
 
 `leave_group` had a button; unfriend did not. Deleting an accepted friendship

@@ -11,9 +11,10 @@ import { useCallback, useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar } from '@/components/avatar';
-import { Body, Button, Field, Notice, Screen, Title } from '@/components/ui';
+import { GenderChips } from '@/components/gender-chips';
+import { Body, Button, Field, LinkButton, Notice, Screen, Title } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
-import { downscaleProfilePhoto, uploadProfilePhoto } from '@/lib/profile-photo';
+import { downscaleProfilePhoto, removeProfilePhoto, uploadProfilePhoto } from '@/lib/profile-photo';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 
@@ -39,7 +40,9 @@ export default function ProfileEdit() {
 
   const [username, setUsername] = useState(profile?.username ?? '');
   const [displayName, setDisplayName] = useState(profile?.display_name ?? '');
+  const [gender, setGender] = useState<string | null>(profile?.gender ?? null);
   const [photo, setPhoto] = useState<string | null>(null);
+  const [clearPhoto, setClearPhoto] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,6 +71,7 @@ export default function ProfileEdit() {
     if (!res.canceled) {
       const asset = res.assets[0];
       setPhoto(await downscaleProfilePhoto(asset.uri, asset.width));
+      setClearPhoto(false);
       setError(null);
     }
   }, []);
@@ -77,15 +81,21 @@ export default function ProfileEdit() {
     setBusy(true);
     setError(null);
     try {
-      let dpUrl: string | undefined;
+      let dpUrl: string | null | undefined;
       if (photo) dpUrl = await uploadProfilePhoto(session.user.id, photo);
+      else if (clearPhoto) {
+        await removeProfilePhoto(session.user.id);
+        dpUrl = null;
+      }
 
       const { error: dbErr } = await supabase
         .from('profiles')
         .update({
           username,
           display_name: displayName.trim(),
-          ...(dpUrl ? { dp_url: dpUrl } : {}),
+          gender,
+          ...(gender ? {} : { match_same_gender_only: false }),
+          ...(dpUrl !== undefined ? { dp_url: dpUrl } : {}),
         })
         .eq('id', session.user.id);
       if (dbErr) throw new Error(dbErr.message);
@@ -112,15 +122,26 @@ export default function ProfileEdit() {
           <Image source={{ uri: photo }} style={styles.photo} accessibilityIgnoresInvertColors />
         ) : (
           <Avatar
-            uri={profile?.dp_url}
+            uri={clearPhoto ? null : profile?.dp_url}
             name={displayName}
             username={username}
             size={84}
           />
         )}
-        <Text style={{ color: c.accent, fontWeight: '600' }}>
-          {photo || profile?.dp_url ? 'Change photo' : 'Add a photo (optional)'}
-        </Text>
+        <View style={{ flex: 1, gap: 6 }}>
+          <Text style={{ color: c.accent, fontWeight: '600' }}>
+            {photo || (profile?.dp_url && !clearPhoto) ? 'Change photo' : 'Add a photo (optional)'}
+          </Text>
+          {(photo || (profile?.dp_url && !clearPhoto)) && !busy ? (
+            <LinkButton
+              label="Remove photo"
+              onPress={() => {
+                setPhoto(null);
+                setClearPhoto(true);
+              }}
+            />
+          ) : null}
+        </View>
       </Pressable>
 
       <Field
@@ -142,6 +163,8 @@ export default function ProfileEdit() {
         maxLength={40}
         editable={!busy}
       />
+
+      <GenderChips value={gender} onChange={setGender} disabled={busy} />
 
       {error ? <Notice tone="error">{error}</Notice> : null}
       <Button label="Save" onPress={save} loading={busy} disabled={!ready} />

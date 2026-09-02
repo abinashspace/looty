@@ -391,7 +391,9 @@ No video. **No content moderation** — these are friend-gated, so the risk is l
   the app's main unsolicited-image risk.
 - **Screenshot detection notifies the other person.** It does not block. See §7.
 - Filters: college scope (same college / all India, **default same college**), plus
-  an opt-in "only show me the same gender" safety toggle.
+  an opt-in "same gender only" safety toggle. Gender is optional, set on profile
+  setup or You → Edit profile. The toggle asks you to set gender first if it is
+  empty. Not a dating preference.
 
 ### 3.5 Safety
 

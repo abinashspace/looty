@@ -14,6 +14,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar } from '@/components/avatar';
+import { GenderChips } from '@/components/gender-chips';
 import { Body, Button, Field, Notice, Screen, Title } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
 import { downscaleProfilePhoto, uploadProfilePhoto } from '@/lib/profile-photo';
@@ -37,6 +38,7 @@ export default function ProfileSetup() {
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [courseIdx, setCourseIdx] = useState<number | null>(null);
+  const [gender, setGender] = useState<string | null>(null);
   const [photo, setPhoto] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,6 +93,7 @@ export default function ProfileSetup() {
           display_name: displayName.trim(),
           course_years: COURSES[courseIdx].years,
           start_year: new Date().getFullYear(),
+          gender,
           ...(dpUrl ? { dp_url: dpUrl } : {}),
         })
         .eq('id', session.user.id);
@@ -180,6 +183,8 @@ export default function ProfileSetup() {
           just shows a badge.
         </Text>
       </View>
+
+      <GenderChips value={gender} onChange={setGender} disabled={busy} />
 
       {error ? <Notice tone="error">{error}</Notice> : null}
 

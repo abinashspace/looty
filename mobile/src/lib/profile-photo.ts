@@ -38,3 +38,7 @@ export async function uploadProfilePhoto(userId: string, uri: string): Promise<s
   // Cache-bust: same path is upserted, so clients would keep the old image.
   return `${publicUrl}?t=${Date.now()}`;
 }
+
+export async function removeProfilePhoto(userId: string): Promise<void> {
+  await supabase.storage.from('avatars').remove([`${userId}/dp.jpg`]);
+}

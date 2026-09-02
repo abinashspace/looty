@@ -9,7 +9,7 @@
  * enforced in Postgres — the counter shown here is a courtesy, not a gate.
  */
 
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter, type Href } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -48,7 +48,7 @@ export default function Match() {
 }
 
 function Feed() {
-  const { session } = useSession();
+  const { session, profile } = useSession();
   const router = useRouter();
   const c = useTheme();
 
@@ -135,6 +135,29 @@ function Feed() {
     await load();
   }
 
+  async function toggleSameGender() {
+    if (!prefs) return;
+    if (!profile?.gender) {
+      Alert.alert(
+        'Set your gender first',
+        'This is a safety filter, not a dating preference. Add your gender in Edit profile, then turn it on.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Edit profile', onPress: () => router.push('/profile-edit' as Href) },
+        ],
+      );
+      return;
+    }
+    const next = !prefs.match_same_gender_only;
+    setPrefs({ ...prefs, match_same_gender_only: next });
+    await supabase
+      .from('profiles')
+      .update({ match_same_gender_only: next })
+      .eq('id', session?.user.id ?? '');
+    setLoading(true);
+    await load();
+  }
+
   if (loading) {
     return (
       <SafeAreaView style={[styles.fill, { backgroundColor: c.background }]}>
@@ -153,6 +176,16 @@ function Feed() {
         <Pressable onPress={toggleScope} hitSlop={8} accessibilityRole="button">
           <Text style={{ color: c.accent, fontSize: 14, fontWeight: '600' }}>
             {prefs?.match_scope === 'all_india' ? 'All India' : 'My college'}
+          </Text>
+        </Pressable>
+        <Pressable onPress={toggleSameGender} hitSlop={8} accessibilityRole="button">
+          <Text
+            style={{
+              color: prefs?.match_same_gender_only ? c.accent : c.textSecondary,
+              fontSize: 14,
+              fontWeight: '600',
+            }}>
+            Same gender
           </Text>
         </Pressable>
         <Text style={{ color: c.textSecondary, fontSize: 13 }}>

@@ -15,6 +15,17 @@
 
 ---
 
+## 2026-09-01 — Leave group and Leave Connected chat
+
+The server had `leave_group` and a Connection UPDATE policy; the app had
+neither button. Groups list and the room header now have Leave. Connected
+chats have Leave (not "unmatch") — Block is still separate.
+
+Ending a Connection did not close `threads.ended_at`, so the composer stayed
+open. A trigger copies the end onto the thread. 205 tests.
+
+---
+
 ## 2026-09-01 — Download my data (DPDP access)
 
 Laptop-only. Privacy used to say email support for a copy. `export_my_data()`

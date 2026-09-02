@@ -8,7 +8,7 @@
 
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ChatShell, Composer, MessageList, type ChatMessage } from '@/components/chat';
 import { useTheme } from '@/hooks/use-theme';
@@ -94,6 +94,21 @@ export default function GroupRoom() {
 
   const title = room ? room.category.charAt(0).toUpperCase() + room.category.slice(1) : 'Group';
 
+  function confirmLeave() {
+    if (!room) return;
+    Alert.alert(`Leave ${title}?`, 'You can join again later. Messages stay in the room.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Leave',
+        style: 'destructive',
+        onPress: async () => {
+          const { error } = await supabase.rpc('leave_group', { p_category: room.category });
+          if (!error) router.back();
+        },
+      },
+    ]);
+  }
+
   return (
     <ChatShell>
       <View style={[styles.header, { borderBottomColor: c.border }]}>
@@ -109,6 +124,11 @@ export default function GroupRoom() {
             </Text>
           ) : null}
         </View>
+        {isMember ? (
+          <Pressable onPress={confirmLeave} hitSlop={8} accessibilityRole="button">
+            <Text style={{ color: c.textSecondary, fontSize: 14 }}>Leave</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       <MessageList

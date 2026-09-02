@@ -9,7 +9,7 @@
 
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Notice } from '@/components/ui';
@@ -35,6 +35,7 @@ export default function Groups() {
   const [mine, setMine] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -75,6 +76,22 @@ export default function Groups() {
       router.push(`/(app)/groups/${data}`);
     }
     setJoining(null);
+  }
+
+  async function leave(category: string) {
+    setLeaving(category);
+    setError(null);
+    const { error: err } = await supabase.rpc('leave_group', { p_category: category });
+    if (err) setError(err.message);
+    else await load();
+    setLeaving(null);
+  }
+
+  function confirmLeave(category: string, label: string) {
+    Alert.alert(`Leave ${label}?`, 'You can join again later. Messages stay in the room.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Leave', style: 'destructive', onPress: () => leave(category) },
+    ]);
   }
 
   const canPost = can('postInGroups', tier, isBanned);
@@ -133,6 +150,26 @@ export default function Groups() {
                       <ActivityIndicator size="small" color={c.accentText} />
                     ) : (
                       <Text style={{ color: c.accentText, fontWeight: '600', fontSize: 14 }}>Join</Text>
+                    )}
+                  </Pressable>
+                ) : joined && canPost ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => confirmLeave(cat.key, cat.label)}
+                    disabled={leaving === cat.key}
+                    style={[
+                      styles.join,
+                      {
+                        backgroundColor: 'transparent',
+                        borderWidth: 1,
+                        borderColor: c.border,
+                        opacity: leaving === cat.key ? 0.5 : 1,
+                      },
+                    ]}>
+                    {leaving === cat.key ? (
+                      <ActivityIndicator size="small" />
+                    ) : (
+                      <Text style={{ color: c.text, fontWeight: '600', fontSize: 14 }}>Leave</Text>
                     )}
                   </Pressable>
                 ) : null}

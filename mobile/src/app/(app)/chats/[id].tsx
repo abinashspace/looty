@@ -151,6 +151,34 @@ export default function Chat() {
     );
   }
 
+  function confirmLeave() {
+    if (!thread || thread.type !== 'connection') return;
+    Alert.alert(
+      'Leave this chat?',
+      'You will not see each other in Match again. You are not blocking them.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: async () => {
+            const me = session?.user.id;
+            if (!me) return;
+            const lo = me < thread.other_id ? me : thread.other_id;
+            const hi = me < thread.other_id ? thread.other_id : me;
+            const { error } = await supabase
+              .from('connections')
+              .update({ status: 'ended', ended_at: new Date().toISOString() })
+              .eq('user_a', lo)
+              .eq('user_b', hi)
+              .eq('status', 'active');
+            if (!error) await load();
+          },
+        },
+      ],
+    );
+  }
+
   function confirmReport() {
     if (!thread) return;
     Alert.alert('Report this person?', 'Pick what happened. Reports are reviewed automatically.', [
@@ -193,6 +221,11 @@ export default function Chat() {
             <Text style={{ color: c.textSecondary, fontSize: 12 }}>Connected</Text>
           ) : null}
         </View>
+        {thread?.type === 'connection' && !ended ? (
+          <Pressable onPress={confirmLeave} hitSlop={8} accessibilityRole="button">
+            <Text style={{ color: c.textSecondary, fontSize: 14 }}>Leave</Text>
+          </Pressable>
+        ) : null}
         <Pressable onPress={confirmReport} hitSlop={8} accessibilityRole="button">
           <Text style={{ color: c.textSecondary, fontSize: 14 }}>Report</Text>
         </Pressable>

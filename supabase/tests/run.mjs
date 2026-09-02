@@ -744,6 +744,13 @@ await check('either side can end a Connection', async () => {
     `update connections set status='ended', ended_at=now() where user_a=least($1::uuid,$2::uuid) and user_b=greatest($1::uuid,$2::uuid)`, [mia, noor]));
   eq((await one(`select status from connections where user_a=least($1::uuid,$2::uuid) and user_b=greatest($1::uuid,$2::uuid)`, [mia, noor])).status, 'ended');
 });
+await check('ending a Connection also ends its chat thread', async () => {
+  eq((await one(
+    `select ended_at is not null as x from threads
+     where type='connection'
+       and user_a=least($1::uuid,$2::uuid) and user_b=greatest($1::uuid,$2::uuid)`,
+    [mia, noor])).x, true);
+});
 
 console.log('\nLooty Match — daily quota (IST)');
 const quotaUser = await mkUser('quo');

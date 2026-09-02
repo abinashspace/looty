@@ -15,6 +15,17 @@
 
 ---
 
+## 2026-09-01 — Group messages expire after 30 days
+
+Laptop-only. The privacy page already promised a 30-day rolling window and
+nothing deleted. `purge_old_group_messages()` removes older `group_messages`.
+Clients cannot call it. On hosted Postgres, `pg_cron` runs it daily at 21:15
+UTC if the extension exists; pglite tests call the function directly.
+
+DMs are unchanged (kept until delete-account).
+
+---
+
 ## 2026-09-01 — App repo made public; privacy served from /docs
 
 Owner asked why privacy lived in a second repo. Only reason: this repo was

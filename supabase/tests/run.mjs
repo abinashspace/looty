@@ -664,6 +664,24 @@ await check('word list is never readable by clients', async () => {
   eq(r.c, 0);
 });
 
+console.log('\nGroups — 30-day retention');
+await check('messages older than 30 days are deleted, recent ones stay', async () => {
+  await asUser(g.gus, () => db.query(
+    `insert into group_messages (group_id, sender_id, body) values ($1,$2,'keep me')`,
+    [studyRoom, g.gus]));
+  await db.query(
+    `insert into group_messages (group_id, sender_id, body, created_at)
+     values ($1,$2,'too old', now() - interval '31 days')`,
+    [studyRoom, g.gus]);
+  eq((await one(`select purge_old_group_messages() n`)).n, 1);
+  eq((await one(`select count(*) c from group_messages where body='too old'`)).c, 0);
+  eq((await one(`select count(*) c from group_messages where body='keep me'`)).c, 1);
+});
+await check('clients cannot run the group-message purge', async () => {
+  eq((await one(`select has_function_privilege('authenticated','purge_old_group_messages()','execute') x`)).x, false);
+  eq((await one(`select has_function_privilege('anon','purge_old_group_messages()','execute') x`)).x, false);
+});
+
 // ---------------------------------------------------------------------------
 // Phase 4 — Looty Match
 // ---------------------------------------------------------------------------
@@ -1316,7 +1334,7 @@ await check('anon can execute nothing in public', async () => {
   eq(r.c, 0, 'functions executable by anon');
 });
 await check('service-role-only functions stay closed to authenticated', async () => {
-  for (const fn of ['apply_verification(uuid)', 'hash_email_code(text,text)', 'trips_word_filter(text)']) {
+  for (const fn of ['apply_verification(uuid)', 'hash_email_code(text,text)', 'trips_word_filter(text)', 'purge_old_group_messages()']) {
     const r = await one(`select has_function_privilege('authenticated', $1, 'execute') x`, [fn]);
     eq(r.x, false, fn);
   }

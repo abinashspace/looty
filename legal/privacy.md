@@ -54,7 +54,7 @@ abandoned path and are unused).
 
 - Your account and messages until you delete the account, or we close the
   service.
-- Group messages: intended 30-day rolling window (not built yet).
+- Group messages: 30-day rolling window.
 - A **permanent ban** keeps a hash of the college email after the account is
   gone, so the same mailbox cannot sign up again. If that ban is lifted, the
   hash is deleted.

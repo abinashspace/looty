@@ -76,7 +76,7 @@ live as Tier 2 on 2026-08-31.
 ### What exists right now
 
 ```
-supabase/migrations/   28 migrations. Phase 1: colleges + domain allowlist,
+supabase/migrations/   29 migrations. Phase 1: colleges + domain allowlist,
                        profiles, verifications + bans + access gate, RLS +
                        column grants. Phase 2: blocks + friendships, threads +
                        messages, reports, Phase 2 RLS. Then: college email
@@ -91,9 +91,10 @@ supabase/migrations/   28 migrations. Phase 1: colleges + domain allowlist,
                        grants + my_match_prefs(), friend discovery,
                        function lockdown sweep, function-create grants fix,
                        notification_prefs, username trigger SECURITY DEFINER,
-                       chat-images bucket, push_tokens, screenshot notices
+                       chat-images bucket, push_tokens, screenshot notices,
+                       group-message 30-day purge
 supabase/functions/    issue-college-code, delete-account (both deployed)
-supabase/tests/run.mjs 198 behaviour tests, run with `npm run test:db`
+supabase/tests/run.mjs 200 behaviour tests, run with `npm run test:db`
 supabase/seed.sql      sample colleges; domain list deliberately EMPTY
 mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/lib/tiers.ts     client mirror of the server tier gate — NOT security
@@ -142,7 +143,7 @@ Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
 
 ### Verified so far
 
-`npm run test:db` passes 198/198. `npx tsc --noEmit` is clean. The UI has rendered
+`npm run test:db` passes 200/200. `npx tsc --noEmit` is clean. The UI has rendered
 on a real Android device (2026-08-31, again 2026-09-01 through profile, groups,
 and a Study send) and once in a browser (2026-08-30). Chat images and push-token
 RPCs were verified against the live API on 2026-09-01; the 1:1 image picker has
@@ -370,6 +371,8 @@ No video. **No content moderation** — these are friend-gated, so the risk is l
   people they already know have friend DMs; these rooms exist to meet students you
   would never otherwise meet.
 - New joiners see the **last 50 messages**.
+- **30-day rolling window.** `purge_old_group_messages()` deletes older rows.
+  DMs are kept until account deletion. Not client-callable.
 - Automatic profanity filter.
 
 ### 3.4 Looty Match — Tier 1+ only
@@ -686,10 +689,9 @@ subdomain, and roughly what share of students have one. A wrong entry is worse t
 a missing one — a missing domain merely locks a student out, a wrong one hands full
 access to whoever holds an address on it.
 
-**The repo is private**, which is what keeps the moderation thresholds and
-anti-brigade rules in §3.5 out of reach — published, they would read as a manual for
-gaming the report system. It was switched from public on 2026-08-28. Keep it that
-way through launch.
+**The repo is public** (owner, 2026-09-01, so GitHub Pages can serve the privacy
+policy from `docs/`). Moderation thresholds in §3.5 are therefore readable.
+That is accepted; RLS still enforces them.
 
 ### Assumptions never explicitly confirmed
 

@@ -10,6 +10,8 @@
  * because removing auth.users is an Admin API call; the client cannot do it.
  */
 
+import { File, Paths } from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -44,6 +46,8 @@ export default function Profile() {
   const [confirm, setConfirm] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const uid = session?.user.id;
 
@@ -76,6 +80,34 @@ export default function Profile() {
     },
     [prefs, uid],
   );
+
+  async function downloadData() {
+    setExporting(true);
+    setExportError(null);
+    const { data, error } = await supabase.rpc('export_my_data');
+    if (error || !data) {
+      setExportError('Could not prepare your data. Try again.');
+      setExporting(false);
+      return;
+    }
+    try {
+      const file = new File(Paths.cache, 'looty-data.json');
+      if (file.exists) file.delete();
+      file.create();
+      await file.write(JSON.stringify(data, null, 2));
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(file.uri, {
+          mimeType: 'application/json',
+          dialogTitle: 'Your Looty data',
+        });
+      } else {
+        setExportError('Sharing is not available on this device.');
+      }
+    } catch {
+      setExportError('Could not save the file. Try again.');
+    }
+    setExporting(false);
+  }
 
   async function deleteAccount() {
     setDeleting(true);
@@ -188,6 +220,13 @@ export default function Profile() {
 
       <View style={{ height: 8 }} />
       <LinkButton label="Privacy" onPress={() => router.push('/privacy' as Href)} />
+      {exportError ? <Notice tone="error">{exportError}</Notice> : null}
+      <Button
+        label="Download my data"
+        variant="secondary"
+        loading={exporting}
+        onPress={downloadData}
+      />
       <Button label="Sign out" variant="secondary" onPress={signOut} />
 
       <Text style={[styles.section, { color: c.text }]}>Delete account</Text>

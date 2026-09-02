@@ -15,6 +15,19 @@
 
 ---
 
+## 2026-09-01 — Download my data (DPDP access)
+
+Laptop-only. Privacy used to say email support for a copy. `export_my_data()`
+returns JSON of the caller's own rows: profile (including their college
+email), messages they sent, groups they joined, friendships as usernames,
+loots, reports they filed, bans, appeals. Not other people's mail, not
+other people's messages, not push-token strings.
+
+You → Download my data writes a JSON file and opens the system share sheet.
+Anon cannot call the RPC. 204 tests.
+
+---
+
 ## 2026-09-01 — Group messages expire after 30 days
 
 Laptop-only. The privacy page already promised a 30-day rolling window and

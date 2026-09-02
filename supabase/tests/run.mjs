@@ -1325,6 +1325,28 @@ await check('an outsider cannot record a screenshot on someone else\'s thread', 
     `select count(*) c from messages where thread_id=$1 and kind='screenshot'`, [scThread])).c, 1);
 });
 
+console.log('\nDPDP export');
+await check('a signed-in user can export their own profile and login email', async () => {
+  await db.query(`update profiles set college_email='private_u1@iitb.ac.in' where id=$1`, [u1.id]);
+  const d = await asUser(u1.id, async () => (await one(`select export_my_data() d`)).d);
+  eq(d.account.email, 'a@gmail.com');
+  eq(d.profile.college_email, 'private_u1@iitb.ac.in');
+  eq(d.account.id, u1.id);
+});
+await check('the export does not contain another persons college email', async () => {
+  const d = await asUser(u2.id, async () => (await one(`select export_my_data() d`)).d);
+  if (JSON.stringify(d).includes('private_u1@iitb.ac.in')) {
+    throw new Error('other persons college_email leaked');
+  }
+});
+await check('unsigned callers cannot export', async () => {
+  await db.query(`select set_config('request.jwt.claim.sub', '', false)`);
+  await throws(`select export_my_data()`, [], 'not_authenticated');
+});
+await check('anon cannot execute export_my_data', async () => {
+  eq((await one(`select has_function_privilege('anon','export_my_data()','execute') x`)).x, false);
+});
+
 console.log('\nFunction execute privileges');
 await check('anon can execute nothing in public', async () => {
   const r = await one(`select count(*) c from pg_proc p
@@ -1369,7 +1391,7 @@ await check('the functions the app actually calls are still callable', async () 
                     'join_group(group_category)', 'confirm_college_email(text)', 'open_dm_thread(uuid)',
                     'can_read_chat_image(text)', 'can_write_chat_image(text)',
                     'register_push_token(text)', 'unregister_push_token(text)',
-                    'record_screenshot(uuid)']) {
+                    'record_screenshot(uuid)', 'export_my_data()']) {
     const r = await one(`select has_function_privilege('authenticated', $1, 'execute') x`, [fn]);
     eq(r.x, true, fn);
   }

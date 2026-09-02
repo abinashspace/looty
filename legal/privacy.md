@@ -64,7 +64,8 @@ abandoned path and are unused).
 You can:
 
 - See and edit your profile in the app
-- Download is not built yet; email support if you need a copy
+- **Download your data** from You → Download my data. That is a JSON file of
+  what Looty stores about you.
 - **Delete your account** from You → Delete account. That removes the login,
   profile, photos, messages and tokens. A permanent-ban hash is the only thing
   that can remain, and only if you were permanently restricted.

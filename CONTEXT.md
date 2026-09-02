@@ -101,6 +101,7 @@ mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/lib/supabase.ts  client; degrades to a setup screen when .env is absent
   src/lib/chat-image.ts  private upload + signed URL for 1:1 photos
   src/lib/push.ts      register/unregister Expo push token (no-op in Expo Go)
+  src/components/avatar.tsx  Photo or initials; Match card variant
   src/components/ui.tsx  Screen / Field / Button / Notice / Toggle — the whole kit
   src/components/chat.tsx  ChatShell + MessageList + Composer (groups and DMs)
   src/app/(auth)/      sign-in, verify, college, profile-setup — all REAL
@@ -323,8 +324,9 @@ decision recorded in LOG.md.
 
 - **Profile picture optional.** College email is the identity proof. A required
   face fought anonymity and the friends-not-dating position (owner, 2026-09-01).
-  Match cards show a photo if someone added one; otherwise username and display
-  name only.
+  Match cards and lists show a photo if someone added one; otherwise two
+  initials from the display name (else username). The Looted-you paywall still
+  uses `?` placeholders — those are not initials of real people.
 - **Display name** is entered by the user. With the ID path gone there is no
   document to take a legal name from, so nothing verifies it — the college email is
   what proves someone is a student, not their name. `profiles.full_name` is dormant

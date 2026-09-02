@@ -11,8 +11,9 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
+import { Avatar } from '@/components/avatar';
 import { Body, Button, Field, LinkButton, Notice, Screen, Title, Toggle } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/lib/session';
@@ -116,11 +117,12 @@ export default function Profile() {
   return (
     <Screen>
       <View style={styles.header}>
-        {profile.dp_url ? (
-          <Image source={{ uri: profile.dp_url }} style={styles.dp} />
-        ) : (
-          <View style={[styles.dp, { backgroundColor: c.backgroundElement }]} />
-        )}
+        <Avatar
+          uri={profile.dp_url}
+          name={profile.display_name}
+          username={profile.username}
+          size={72}
+        />
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={[styles.name, { color: c.text }]}>
             {profile.display_name ?? 'No name yet'}
@@ -219,7 +221,6 @@ export default function Profile() {
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 16 },
-  dp: { width: 72, height: 72, borderRadius: 36 },
   name: { fontSize: 20, fontWeight: '700' },
   badges: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   badge: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },

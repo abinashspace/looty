@@ -11,9 +11,10 @@
 
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Avatar } from '@/components/avatar';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
@@ -77,11 +78,7 @@ export default function Requests() {
     const busy = acting === r.friendship_id;
     return (
       <View style={styles.row}>
-        {r.dp_url ? (
-          <Image source={{ uri: r.dp_url }} style={styles.dp} />
-        ) : (
-          <View style={[styles.dp, { backgroundColor: c.backgroundElement }]} />
-        )}
+        <Avatar uri={r.dp_url} name={r.display_name} username={r.username} size={48} />
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={[styles.name, { color: c.text }]} numberOfLines={1}>
             {r.display_name ?? 'Someone'}
@@ -176,7 +173,6 @@ const styles = StyleSheet.create({
   h1: { fontSize: 20, fontWeight: '700' },
   section: { fontSize: 13, fontWeight: '600', paddingTop: 20, paddingBottom: 4 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12 },
-  dp: { width: 48, height: 48, borderRadius: 24 },
   name: { fontSize: 16, fontWeight: '600' },
   btn: { borderWidth: 1, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999 },
 });

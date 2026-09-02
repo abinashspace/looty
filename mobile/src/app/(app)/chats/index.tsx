@@ -8,9 +8,10 @@
 
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Avatar } from '@/components/avatar';
 import { Notice } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/lib/session';
@@ -121,11 +122,12 @@ export default function Chats() {
               accessibilityRole="button"
               onPress={() => router.push(`/(app)/chats/${item.thread_id}`)}
               style={({ pressed }) => [styles.row, { opacity: pressed ? 0.7 : 1 }]}>
-              {item.other_dp_url ? (
-                <Image source={{ uri: item.other_dp_url }} style={styles.dp} />
-              ) : (
-                <View style={[styles.dp, { backgroundColor: c.backgroundElement }]} />
-              )}
+              <Avatar
+                uri={item.other_dp_url}
+                name={item.other_display_name}
+                username={item.other_username}
+                size={52}
+              />
 
               <View style={{ flex: 1, gap: 2 }}>
                 <View style={styles.nameRow}>
@@ -168,7 +170,6 @@ const styles = StyleSheet.create({
   },
   h1: { fontSize: 28, fontWeight: '700', letterSpacing: -0.5 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12 },
-  dp: { width: 52, height: 52, borderRadius: 26 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   name: { fontSize: 16, fontWeight: '600', flexShrink: 1 },
   tag: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },

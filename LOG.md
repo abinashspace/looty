@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-09-01 — Initials when there is no profile photo
+
+Laptop-only. Optional photos left a blank grey block on Match, You, inbox,
+search, requests, and Looted-you. That looked like a failed image. Those
+surfaces now show two letters from the display name, or the username if the
+name is empty. Setup preview does the same as you type. The Looted-you paywall
+grid is unchanged — `?` is still a placeholder, not a leak.
+
+---
+
 ## 2026-09-01 — Client registers Expo push tokens
 
 Laptop-only. `register_push_token` / `unregister_push_token` existed with no

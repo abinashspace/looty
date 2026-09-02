@@ -14,6 +14,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { Avatar } from '@/components/avatar';
 import { Body, Button, Field, Notice, Screen, Title } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/lib/session';
@@ -151,17 +152,15 @@ export default function ProfileSetup() {
       </Body>
 
       <Pressable onPress={pickPhoto} style={styles.photoRow} accessibilityRole="button">
-        <View
-          style={[
-            styles.photo,
-            { backgroundColor: c.backgroundElement, borderColor: c.border },
-          ]}>
-          {photo ? (
-            <Image source={{ uri: photo }} style={styles.photoImg} />
-          ) : (
-            <Text style={{ color: c.textSecondary, fontSize: 12 }}>Optional</Text>
-          )}
-        </View>
+        {photo ? (
+          <Image
+            source={{ uri: photo }}
+            style={styles.photo}
+            accessibilityIgnoresInvertColors
+          />
+        ) : (
+          <Avatar name={displayName} username={username} size={84} />
+        )}
         <Text style={{ color: c.accent, fontWeight: '600' }}>
           {photo ? 'Change photo' : 'Add a photo (optional)'}
         </Text>
@@ -232,12 +231,8 @@ const styles = StyleSheet.create({
     width: 84,
     height: 84,
     borderRadius: 42,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
     overflow: 'hidden',
   },
-  photoImg: { width: '100%', height: '100%' },
   label: { fontSize: 13, fontWeight: '600' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9 },

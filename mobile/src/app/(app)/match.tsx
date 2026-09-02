@@ -16,7 +16,6 @@ import {
   Alert,
   Dimensions,
   FlatList,
-  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -24,6 +23,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { MatchPhoto } from '@/components/avatar';
 import { Notice } from '@/components/ui';
 import { TierGate } from '@/components/tier-gate';
 import { useTheme } from '@/hooks/use-theme';
@@ -193,11 +193,12 @@ function Feed() {
             })}
             renderItem={({ item }) => (
               <View style={[styles.card, { height: cardHeight }]}>
-                {item.dp_url ? (
-                  <Image source={{ uri: item.dp_url }} style={styles.photo} resizeMode="cover" />
-                ) : (
-                  <View style={[styles.photo, { backgroundColor: c.backgroundElement }]} />
-                )}
+                <MatchPhoto
+                  uri={item.dp_url}
+                  name={item.display_name}
+                  username={item.username}
+                  style={styles.photo}
+                />
 
                 <View style={styles.meta}>
                   <Text style={[styles.name, { color: c.text }]} numberOfLines={1}>

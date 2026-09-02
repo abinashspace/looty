@@ -11,9 +11,10 @@
 
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Avatar } from '@/components/avatar';
 import { TierGate } from '@/components/tier-gate';
 import { Notice } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
@@ -137,11 +138,7 @@ function LootedList() {
           }
           renderItem={({ item }) => (
             <View style={styles.row}>
-              {item.dp_url ? (
-                <Image source={{ uri: item.dp_url }} style={styles.dp} />
-              ) : (
-                <View style={[styles.dp, { backgroundColor: c.backgroundElement }]} />
-              )}
+              <Avatar uri={item.dp_url} name={item.display_name} username={item.username} size={52} />
               <View style={{ flex: 1, gap: 2 }}>
                 <Text style={[styles.name, { color: c.text }]} numberOfLines={1}>
                   {item.display_name ?? 'Someone'}
@@ -183,7 +180,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12 },
-  dp: { width: 52, height: 52, borderRadius: 26 },
   name: { fontSize: 16, fontWeight: '600' },
   lootBack: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999 },
 });

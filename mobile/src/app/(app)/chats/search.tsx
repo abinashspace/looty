@@ -12,9 +12,10 @@
 
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Avatar } from '@/components/avatar';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
@@ -144,11 +145,12 @@ export default function Search() {
               const a = action(person);
               return (
                 <View key={person.id} style={styles.row}>
-                  {person.dp_url ? (
-                    <Image source={{ uri: person.dp_url }} style={styles.dp} />
-                  ) : (
-                    <View style={[styles.dp, { backgroundColor: c.backgroundElement }]} />
-                  )}
+                  <Avatar
+                    uri={person.dp_url}
+                    name={person.display_name}
+                    username={person.username}
+                    size={48}
+                  />
                   <View style={{ flex: 1, gap: 2 }}>
                     <Text style={[styles.name, { color: c.text }]} numberOfLines={1}>
                       {person.display_name ?? 'Someone'}
@@ -214,7 +216,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12 },
-  dp: { width: 48, height: 48, borderRadius: 24 },
   name: { fontSize: 16, fontWeight: '600' },
   action: { borderWidth: 1, paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, minWidth: 88, alignItems: 'center' },
 });

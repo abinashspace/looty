@@ -71,7 +71,7 @@ live as Tier 2 on 2026-08-31.
 | 4 | Looty Match | Done — schema, tests, feed, quota, Looted-you paywall. **Verified live as Tier 2** (loot, mutual Connect, quota) |
 | 5 | Automatic moderation engine | Done — schema, tests, restriction screen and appeal form |
 | 6 | Ads + subscription | **Not started — needs AdMob and Play Console** |
-| 7 | Play Store requirements | Account deletion and notification prefs are **built**. Listing drafted in `legal/`. Privacy is hosted at https://abinashspace.github.io/looty-legal/. Play Console still needed |
+| 7 | Play Store requirements | Account deletion and notification prefs are **built**. Listing drafted in `legal/`. Privacy is hosted at https://abinashspace.github.io/looty/. Play Console still needed |
 
 ### What exists right now
 
@@ -125,8 +125,7 @@ sent yet. The client calls `register_push_token` after onboarding and
 `unregister_push_token` on sign-out; Expo Go on Android cannot obtain a remote
 token (SDK 53+), so that path is a no-op until a native/EAS build with a
 `projectId`. Play listing copy is drafted under `legal/`. The privacy policy
-is hosted at https://abinashspace.github.io/looty-legal/ (public repo, because
-this app repo is private).
+is hosted at https://abinashspace.github.io/looty/ (`docs/` on this repo).
 
 **1:1 chats can carry images.** Stored in the private `chat-images` bucket;
 `messages.image_url` holds the path, not a public URL. Connected chats do not
@@ -307,7 +306,7 @@ Step-by-step: [`legal/google-and-email.md`](legal/google-and-email.md).
 - Resend (or SES) API key for college-email codes
 - AdMob account, Google Play Console account. Listing draft is in
   [`legal/`](legal/). Privacy URL for Play:
-  https://abinashspace.github.io/looty-legal/
+  https://abinashspace.github.io/looty/
 
 College domains to confirm: [`colleges/CANDIDATES.md`](colleges/CANDIDATES.md).
 Do not add a row to live until a student mailbox on that exact domain is real.

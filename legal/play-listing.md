@@ -69,6 +69,6 @@ Deletion: in-app
 
 ## Support / privacy URLs
 
-- Privacy: https://abinashspace.github.io/looty-legal/
+- Privacy: https://abinashspace.github.io/looty/
 - Account deletion: in-app (required). Also mention it in the listing:  
   “Delete your account from You → Delete account.”

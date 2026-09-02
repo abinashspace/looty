@@ -1,10 +1,7 @@
 # Looty privacy policy
 
-> Hosted at **https://abinashspace.github.io/looty-legal/** (public repo
-> `abinashspace/looty-legal` — the app repo is private so it cannot serve
-> GitHub Pages on a free account). Keep `docs/index.html` in this repo in
-> sync, then copy it to `looty-legal`. Do not paste dating language
-> anywhere this text is reused.
+> Hosted at **https://abinashspace.github.io/looty/** (`docs/index.html` on
+> this repo). Do not paste dating language anywhere this text is reused.
 
 **Last updated: 1 September 2026.**
 

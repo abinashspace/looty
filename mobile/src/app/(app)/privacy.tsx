@@ -9,7 +9,7 @@ import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Body, LinkButton, Screen, Title } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
 
-const PRIVACY_URL = 'https://abinashspace.github.io/looty-legal/';
+const PRIVACY_URL = 'https://abinashspace.github.io/looty/';
 
 export default function Privacy() {
   const router = useRouter();

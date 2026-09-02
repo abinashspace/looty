@@ -15,6 +15,18 @@
 
 ---
 
+## 2026-09-01 — App repo made public; privacy served from /docs
+
+Owner asked why privacy lived in a second repo. Only reason: this repo was
+private, and GitHub Pages is free only on public repos. `abinashspace/looty`
+is now public. Pages source is `main` `/docs`. Policy URL:
+
+https://abinashspace.github.io/looty/
+
+The extra `looty-legal` repo is no longer needed.
+
+---
+
 ## 2026-09-01 — Privacy policy hosted on GitHub Pages
 
 Play needs a public HTTPS URL. This repo is private, and GitHub Pages on a

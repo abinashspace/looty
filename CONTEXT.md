@@ -54,9 +54,13 @@ RMX3771) via USB + Expo Go 57. On 2026-09-01 the owner signed in, confirmed a
 college email at `thangavelu.edu.in`, finished profile setup as **Abinash S /
 @abinashspace** (College Verified, optional photo uploaded), and walked Groups,
 Match, Looted you, Chats, and You. Study / Sports / Friends are joined. A group
-text send was verified on device. Expo Go's keyboard covered the composer; the
-client now lifts it (`ChatShell`). 1:1 photos, screenshot notices / FLAG_SECURE,
-and Match with a second student have not been walked on a phone.
+text send was verified on device. On 2026-09-02 the composer was walked again:
+Expo Go still overlays the IME, `ChatShell` pads by keyboard `screenY`, tabs
+hide while typing, and a Study send landed with the field visible. 1:1 photos,
+screenshot notices / FLAG_SECURE, and Match with a second student have not been
+walked on a phone. `expo-notifications` must not be imported at module load in
+Expo Go (SDK 53 throws); `registerPushToken` lazy-requires it only in a native
+build.
 
 **It has also been run once in a browser**, on 2026-08-30, via `react-native-web`.
 That found the signup-routing bug. The verified-student API surface was exercised

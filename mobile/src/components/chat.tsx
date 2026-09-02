@@ -12,9 +12,10 @@
  * the Looted-you list. Friend DMs show the photo immediately.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Dimensions,
   FlatList,
   Image,
   Keyboard,
@@ -43,20 +44,22 @@ function useKeyboardOpen() {
 }
 
 /**
- * Lifts the composer by the overlap between this scene and the IME.
- * Expo Go does not apply app.json softwareKeyboardLayoutMode, so the
- * keyboard otherwise sits on top of the input.
+ * Lifts the composer by the IME height.
+ *
+ * Expo Go ignores softwareKeyboardLayoutMode and overlays the keyboard, so
+ * measuring the scene under-reports (the composer stays hidden). Padding the
+ * full keyboard height clears it. Tabs hide while typing (`tabBarHideOnKeyboard`).
  */
 export function ChatShell({ children }: { children: React.ReactNode }) {
   const c = useTheme();
-  const box = useRef<View>(null);
   const [lift, setLift] = useState(0);
 
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', (e) => {
-      box.current?.measureInWindow((_x, y, _w, h) => {
-        setLift(Math.max(0, y + h - e.endCoordinates.screenY));
-      });
+      // `height` on this Realme/Expo Go is far smaller than the IME. screenY
+      // is the top of the keyboard in screen space.
+      const fromTop = Dimensions.get('screen').height - e.endCoordinates.screenY;
+      setLift(Math.max(0, Math.ceil(fromTop), Math.ceil(e.endCoordinates.height)));
     });
     const hide = Keyboard.addListener('keyboardDidHide', () => setLift(0));
     return () => {
@@ -67,7 +70,7 @@ export function ChatShell({ children }: { children: React.ReactNode }) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: c.background }} edges={['top']}>
-      <View ref={box} collapsable={false} style={{ flex: 1, paddingBottom: lift }}>
+      <View collapsable={false} style={{ flex: 1, paddingBottom: lift }}>
         {children}
       </View>
     </SafeAreaView>

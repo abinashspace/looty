@@ -15,6 +15,27 @@
 
 ---
 
+## 2026-09-02 — USB: Expo Go push import crash, keyboard lift actually works
+
+Opening the app on the Realme after the unread work hit a red screen:
+`expo-notifications` throws on import in Expo Go SDK 53, before the Expo Go
+no-op ran. `registerPushToken` now `require`s that module only outside Expo
+Go. Session import no longer crashes the tree.
+
+Keyboard lift was still wrong on device: `measureInWindow` and
+`endCoordinates.height` both under-report on this phone, so the IME sat on
+the composer. `ChatShell` now pads `screen.height - keyboard.screenY`. Tabs
+use `tabBarHideOnKeyboard`. Walked: Groups list + Leave, Chats empty +
+Friends + Find people (self), You + Blocked empty, Match Same gender alert
+(safety copy, not dating), Edit profile gender chips, Study composer fully
+visible above Gboard, send "hi". Unread dots and 1:1 photos still need a
+second account.
+
+**Why.** USB was available. The previous ChatShell patch never got a
+re-check.
+
+---
+
 ## 2026-09-02 — Inbox unread, not a read receipt
 
 Chats did not refresh while you sat on the list, and there was no unread

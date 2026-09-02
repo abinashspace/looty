@@ -13,7 +13,6 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import { supabase } from './supabase';
@@ -32,9 +31,13 @@ function easProjectId(): string | null {
 }
 
 export async function registerPushToken(): Promise<void> {
+  // SDK 53+ throws on *import* of expo-notifications inside Expo Go. Stay
+  // out of that module until a native / EAS build.
   if (inExpoGo()) return;
   const projectId = easProjectId();
   if (!projectId) return;
+
+  const Notifications = require('expo-notifications') as typeof import('expo-notifications');
 
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {

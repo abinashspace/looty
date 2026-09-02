@@ -42,7 +42,7 @@ export default function Privacy() {
       <View style={styles.gap} />
       <Body>
         Delete your account from You → Delete account. That removes login, profile,
-        photos, messages and tokens.
+        photos, messages and tokens. Download a copy from You → Download my data.
       </Body>
       <LinkButton label="Full privacy policy" onPress={() => Linking.openURL(PRIVACY_URL)} />
     </Screen>

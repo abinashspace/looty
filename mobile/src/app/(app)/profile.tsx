@@ -221,6 +221,7 @@ export default function Profile() {
 
       <View style={{ height: 8 }} />
       <LinkButton label="Privacy" onPress={() => router.push('/privacy' as Href)} />
+      <LinkButton label="Blocked" onPress={() => router.push('/blocked' as Href)} />
       {exportError ? <Notice tone="error">{exportError}</Notice> : null}
       <Button
         label="Download my data"

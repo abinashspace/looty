@@ -444,6 +444,28 @@ await check('blocking tears down the friendship', async () => {
 });
 await check('blocked pair cannot post to their old thread', () =>
   denied(ana, `insert into messages (thread_id, sender_id, body) values ($1,$2,'still here')`, [threadId, ana]));
+await check('blocker can list who they blocked by username', async () => {
+  const names = (await asUser(ana, async () =>
+    (await db.query(`select username::text u from my_blocks()`)).rows)).map((r) => r.u);
+  if (!names.includes('bo_looty')) throw new Error('ana should see bo');
+});
+await check('blocked user cannot discover the block via my_blocks', async () => {
+  const names = (await asUser(bo, async () =>
+    (await db.query(`select username::text u from my_blocks()`)).rows)).map((r) => r.u);
+  if (names.includes('ana_looty')) throw new Error('bo saw ana');
+});
+await check('unblocking removes the person from my_blocks', async () => {
+  const { rows: [x] } = await db.query(`insert into auth.users (email) values ('ublk@iitb.ac.in') returning id`);
+  await db.query(
+    `update profiles set username='ublk_looty', trust_tier=1, college_id=$2, created_at=now()-interval '30 days' where id=$1`,
+    [x.id, college.id]);
+  await asUser(cy, () => db.query(`insert into blocks (blocker_id, blocked_id) values ($1,$2)`, [cy, x.id]));
+  eq((await asUser(cy, async () =>
+    (await one(`select count(*) c from my_blocks() where blocked_id=$1`, [x.id])).c)), 1);
+  await asUser(cy, () => db.query(`delete from blocks where blocker_id=$1 and blocked_id=$2`, [cy, x.id]));
+  eq((await asUser(cy, async () =>
+    (await one(`select count(*) c from my_blocks() where blocked_id=$1`, [x.id])).c)), 0);
+});
 
 console.log('\nReports');
 await check('eligible user can report', () =>
@@ -1436,7 +1458,7 @@ await check('the functions the app actually calls are still callable', async () 
                     'join_group(group_category)', 'confirm_college_email(text)', 'open_dm_thread(uuid)',
                     'can_read_chat_image(text)', 'can_write_chat_image(text)',
                     'register_push_token(text)', 'unregister_push_token(text)',
-                    'record_screenshot(uuid)', 'export_my_data()']) {
+                    'record_screenshot(uuid)', 'export_my_data()', 'my_blocks()']) {
     const r = await one(`select has_function_privilege('authenticated', $1, 'execute') x`, [fn]);
     eq(r.x, true, fn);
   }

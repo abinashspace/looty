@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-09-01 — Blocked list and Unblock
+
+You could block from chats and groups and never undo it: blocked profiles are
+hidden from each other, so a client join could not list them. `my_blocks()`
+returns only people the caller blocked (usernames via security definer). The
+blocked person sees nothing. You → Blocked, Unblock deletes your row.
+
+---
+
 ## 2026-09-01 — Report and Block from group messages
 
 Group rooms had no report path, and they are strangers at scale. Long-press

@@ -15,6 +15,19 @@
 
 ---
 
+## 2026-09-01 — Privacy policy hosted on GitHub Pages
+
+Play needs a public HTTPS URL. This repo is private, and GitHub Pages on a
+free account only serves public repos, so the HTML lives in a new public
+repo `abinashspace/looty-legal`. URL:
+
+https://abinashspace.github.io/looty-legal/
+
+`docs/index.html` in this repo is the same file. You → Privacy has a link
+out. No custom domain, no money.
+
+---
+
 ## 2026-09-01 — Initials when there is no profile photo
 
 Laptop-only. Optional photos left a blank grey block on Match, You, inbox,

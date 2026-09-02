@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Looty privacy policy</title>
+  <style>
+    body {
+      margin: 0;
+      color: #111;
+      background: #fff;
+      font: 16px/1.5 system-ui, -apple-system, Segoe UI, sans-serif;
+    }
+    main { max-width: 40rem; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+    h1 { font-size: 1.75rem; letter-spacing: -0.03em; margin: 0 0 0.5rem; }
+    h2 { font-size: 1.15rem; margin: 1.75rem 0 0.5rem; }
+    p, li { color: #222; }
+    .muted { color: #555; font-size: 0.9rem; }
+    table { border-collapse: collapse; width: 100%; margin: 0.75rem 0 1rem; font-size: 0.95rem; }
+    th, td { border: 1px solid #ddd; padding: 0.45rem 0.6rem; text-align: left; vertical-align: top; }
+    th { background: #f4f4f4; font-weight: 600; }
+    ul { padding-left: 1.2rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Looty privacy policy</h1>
+    <p class="muted">Last updated: 1 September 2026.</p>
+    <p>Looty is a friends app for verified college students in India. It is not a dating app.</p>
+
+    <h2>Who we are</h2>
+    <p>Looty is operated by the project owner. Contact: the email on the Play Store listing.</p>
+
+    <h2>What we collect</h2>
+    <table>
+      <thead>
+        <tr><th>Data</th><th>Why</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Account email (Google or the address you sign up with)</td><td>Sign in</td></tr>
+        <tr><td>College email, once you confirm it</td><td>Prove you are a student; also the identifier a permanent ban is anchored to (stored as a hash, not the raw address)</td></tr>
+        <tr><td>Username, display name, profile photo, course length, college</td><td>Your profile and Looty Match</td></tr>
+        <tr><td>Gender, if you set it</td><td>Optional Match filter (“only show me the same gender”)</td></tr>
+        <tr><td>Messages you send (text; photos in 1:1 chats only)</td><td>Delivering chat</td></tr>
+        <tr><td>Friend requests, blocks, reports, loots</td><td>The product, and automatic safety</td></tr>
+        <tr><td>Device push token, if you allow notifications</td><td>Sending the notifications you turned on</td></tr>
+        <tr><td>App diagnostics we cannot avoid (crash logs from the store)</td><td>Fixing the app</td></tr>
+      </tbody>
+    </table>
+    <p>We do <strong>not</strong> collect date of birth. There is no age gate. We do <strong>not</strong> ask for an ID card or a phone number (those columns exist in the database from an abandoned path and are unused).</p>
+
+    <h2>What we do not do</h2>
+    <ul>
+      <li>We do not sell your data.</li>
+      <li>We do not run behavioural / personalised advertising. If ads ship, they will be non-personalised for everyone, because some users may be under 18 and India’s DPDP Act forbids targeted ads to them.</li>
+      <li>We do not show your college email, legal name, or phone hash to other users. Those columns are unreadable by the app.</li>
+    </ul>
+
+    <h2>Who can see what</h2>
+    <ul>
+      <li><strong>Tier 0 (unverified):</strong> your own profile only. You can read group rooms.</li>
+      <li><strong>Tier 2 (college confirmed):</strong> other verified students can see your username, display name, photo and college. They cannot see your college email.</li>
+      <li><strong>Chat:</strong> people you are friends with, or Connected with, see messages in that thread. Group rooms are public to every Looty user (text only).</li>
+      <li><strong>Photos in Connected chats</strong> are hidden until the other person taps. That is a courtesy, not encryption — the file still sits on our storage for that thread.</li>
+    </ul>
+
+    <h2>How long we keep it</h2>
+    <ul>
+      <li>Your account and messages until you delete the account, or we close the service.</li>
+      <li>Group messages: intended 30-day rolling window (not built yet).</li>
+      <li>A <strong>permanent ban</strong> keeps a hash of the college email after the account is gone, so the same mailbox cannot sign up again. If that ban is lifted, the hash is deleted.</li>
+    </ul>
+
+    <h2>Your rights (DPDP)</h2>
+    <p>You can:</p>
+    <ul>
+      <li>See and edit your profile in the app</li>
+      <li>Download is not built yet; email support if you need a copy</li>
+      <li><strong>Delete your account</strong> from You → Delete account. That removes the login, profile, photos, messages and tokens. A permanent-ban hash is the only thing that can remain, and only if you were permanently restricted.</li>
+    </ul>
+    <p>You can turn notification types off in You → Notifications. That does not uninstall system permission; it stops Looty from sending those kinds.</p>
+
+    <h2>Safety</h2>
+    <p>Reports are counted automatically. We do not have a human sitting on every report. Eight unique eligible reporters can restrict an account; coordinated fake reports unwind if those reporters are themselves restricted. See the in-app restriction screen.</p>
+
+    <h2>Children</h2>
+    <p>We do not ask your age. The product is built as a friends space for college students, not as a service aimed at children. If you are not supposed to have an account, delete it or ask us to.</p>
+
+    <h2>Changes</h2>
+    <p>We will date this page when it changes. Continued use after a dated change means you have seen it.</p>
+
+    <h2>Contact</h2>
+    <p>Use the Play Store support email, or the in-app appeal form if your account is restricted.</p>
+  </main>
+</body>
+</html>

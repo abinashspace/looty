@@ -1,13 +1,15 @@
 /**
- * In-app privacy note. Play still needs a public HTTPS URL of legal/privacy.md;
- * this is so a student can read the same facts without leaving the app.
+ * In-app privacy note. The full policy is hosted at PRIVACY_URL for Play.
+ * This screen is the same facts without leaving the app.
  */
 
 import { useRouter } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Body, Screen, Title } from '@/components/ui';
+import { Body, LinkButton, Screen, Title } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
+
+const PRIVACY_URL = 'https://abinashspace.github.io/looty-legal/';
 
 export default function Privacy() {
   const router = useRouter();
@@ -42,6 +44,7 @@ export default function Privacy() {
         Delete your account from You → Delete account. That removes login, profile,
         photos, messages and tokens.
       </Body>
+      <LinkButton label="Full privacy policy" onPress={() => Linking.openURL(PRIVACY_URL)} />
     </Screen>
   );
 }

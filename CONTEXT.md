@@ -114,7 +114,9 @@ mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/components/chat.tsx  ChatShell + MessageList + Composer (groups and DMs)
   src/app/(auth)/      sign-in, verify, college, profile-setup — all REAL
   src/app/(app)/       groups/ (list, room), chats/ (inbox, thread, search,
-                       requests), match, looted, profile — all REAL
+                       requests), match, looted, profile — all REAL.
+                       Chats tab badge = unread threads + incoming requests.
+                       Looted-you tab badge = looted_you_count (number only)
   src/app/banned.tsx   restriction notice + appeal form — REAL
 ```
 

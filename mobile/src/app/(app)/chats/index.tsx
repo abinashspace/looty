@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/avatar';
 import { Notice } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
+import { notifyBadges } from '@/lib/badges';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 import { can } from '@/lib/tiers';
@@ -51,6 +52,7 @@ export default function Chats() {
       ((reqs as { direction: string }[]) ?? []).filter((r) => r.direction === 'incoming').length,
     );
     setLoading(false);
+    notifyBadges();
   }, []);
 
   useFocusEffect(

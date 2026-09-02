@@ -15,6 +15,18 @@
 
 ---
 
+## 2026-09-02 — Tab badges for Chats and Looted you
+
+Unread lived only inside the Chats list. The tab itself stayed blank, so a
+message or friend request while you were in Groups was invisible. Chats
+badge is unread threads plus incoming requests. Looted-you badge is the
+server count (identities still paid). Counts refresh on new messages,
+friendship changes, opening a chat (mark-read), and coming back to the app.
+
+**Why.** Same unread work; the tab is where you actually look.
+
+---
+
 ## 2026-09-02 — USB: Expo Go push import crash, keyboard lift actually works
 
 Opening the app on the Realme after the unread work hit a red screen:

@@ -1,12 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 
+import { useTabBadges } from '@/hooks/use-tab-badges';
 import { useTheme } from '@/hooks/use-theme';
 
 // Gated tabs stay visible for Tier 0 rather than disappearing — seeing what
 // verification unlocks is what motivates verifying. TierGate handles the inside.
 export default function AppLayout() {
   const colors = useTheme();
+  const badges = useTabBadges();
+  const badgeStyle = { backgroundColor: colors.accent, color: colors.accentText };
 
   return (
     <Tabs
@@ -35,6 +38,8 @@ export default function AppLayout() {
         name="looted"
         options={{
           title: 'Looted you',
+          tabBarBadge: badges.looted,
+          tabBarBadgeStyle: badgeStyle,
           tabBarIcon: ({ color, size }) => <Ionicons name="flame" size={size} color={color} />,
         }}
       />
@@ -42,6 +47,8 @@ export default function AppLayout() {
         name="chats"
         options={{
           title: 'Chats',
+          tabBarBadge: badges.chats,
+          tabBarBadgeStyle: badgeStyle,
           tabBarIcon: ({ color, size }) => <Ionicons name="chatbubbles" size={size} color={color} />,
         }}
       />

@@ -14,6 +14,7 @@ import { ChatShell, Composer, MessageList, type ChatMessage } from '@/components
 import { useTheme } from '@/hooks/use-theme';
 import { signedChatImageUrl, uploadChatImage } from '@/lib/chat-image';
 import { useConnectedCapture } from '@/lib/connected-capture';
+import { notifyBadges } from '@/lib/badges';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 
@@ -70,6 +71,7 @@ export default function Chat() {
     setLoading(false);
     // Last-read is only for the caller. The other person never sees a tick.
     await supabase.rpc('mark_thread_read', { p_thread: id });
+    notifyBadges();
   }, [id]);
 
   useFocusEffect(

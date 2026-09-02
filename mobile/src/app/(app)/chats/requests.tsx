@@ -16,6 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/avatar';
 import { useTheme } from '@/hooks/use-theme';
+import { notifyBadges } from '@/lib/badges';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 
@@ -61,6 +62,7 @@ export default function Requests() {
     const { data: threadId } = await supabase.rpc('open_dm_thread', { p_other: r.other_id });
     setActing(null);
     await load();
+    notifyBadges();
     if (threadId) router.push(`/(app)/chats/${threadId}`);
   }
 
@@ -68,6 +70,7 @@ export default function Requests() {
     setActing(r.friendship_id);
     await supabase.from('friendships').delete().eq('id', r.friendship_id);
     await load();
+    notifyBadges();
     setActing(null);
   }
 

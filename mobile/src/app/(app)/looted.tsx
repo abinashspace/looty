@@ -18,6 +18,7 @@ import { Avatar } from '@/components/avatar';
 import { TierGate } from '@/components/tier-gate';
 import { Notice } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
+import { notifyBadges } from '@/lib/badges';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 
@@ -53,6 +54,7 @@ function LootedList() {
     setCount(typeof n === 'number' ? n : 0);
     setPeople((rows as Admirer[]) ?? []);
     setLoading(false);
+    notifyBadges();
   }, []);
 
   useFocusEffect(

@@ -94,6 +94,48 @@ export default function GroupRoom() {
 
   const title = room ? room.category.charAt(0).toUpperCase() + room.category.slice(1) : 'Group';
 
+  async function blockSender(senderId: string) {
+    if (!session?.user.id) return;
+    await supabase.from('blocks').insert({ blocker_id: session.user.id, blocked_id: senderId });
+    await load();
+  }
+
+  function reportSender(senderId: string) {
+    Alert.alert('Report this person?', 'Reports are reviewed automatically.', [
+      { text: 'Cancel', style: 'cancel' },
+      ...(['harassment', 'sexual_content', 'spam', 'impersonation'] as const).map((reason) => ({
+        text: reason.replace('_', ' '),
+        onPress: async () => {
+          const { error } = await supabase.from('reports').insert({
+            reporter_id: session?.user.id,
+            target_id: senderId,
+            context: 'group',
+            context_id: id,
+            reason,
+          });
+          Alert.alert(
+            error ? 'Could not report' : 'Reported',
+            error
+              ? 'You may have already reported this person, or your account is too new to report.'
+              : 'Thanks. We only count one report per person, so there is no need to send more.',
+          );
+        },
+      })),
+    ]);
+  }
+
+  function moderateSender(senderId: string, senderName: string | null) {
+    Alert.alert(senderName ?? 'This person', 'Block hides their messages from you in this room.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Report', onPress: () => reportSender(senderId) },
+      {
+        text: 'Block',
+        style: 'destructive',
+        onPress: () => blockSender(senderId),
+      },
+    ]);
+  }
+
   function confirmLeave() {
     if (!room) return;
     Alert.alert(`Leave ${title}?`, 'You can join again later. Messages stay in the room.', [
@@ -137,6 +179,7 @@ export default function GroupRoom() {
         showSenders
         loading={loading}
         emptyText="Nothing here yet. Say something."
+        onModerateSender={moderateSender}
       />
 
       <Composer

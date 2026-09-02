@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-09-01 — Report and Block from group messages
+
+Group rooms had no report path, and they are strangers at scale. Long-press
+someone else's bubble: Report (same reasons and one-per-target rule as DMs,
+context `group`) or Block (their messages collapse in `group_thread`). Own
+bubbles are not pressable.
+
+---
+
 ## 2026-09-01 — Optional gender and Match same-gender filter
 
 Gender was in the schema and `match_same_gender_only` was in the feed, but

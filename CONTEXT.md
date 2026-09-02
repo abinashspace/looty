@@ -117,7 +117,8 @@ mobile/                Expo app (SDK 57, RN 0.86), Android-only
 with photo, your own profile (tier badge, notification switches, data export, account deletion),
 three group rooms with live chat, the DM inbox and 1:1 chat, the Match feed with
 loot/pass and daily quota, the Looted-you list with its paywall, and the
-restriction screen with an appeal form. Report and Block sit in the chat header.
+restriction screen with an appeal form. Report and Block sit in the 1:1 chat header. In group rooms, long-press someone
+else's message to report or block them.
 
 The only remaining `Placeholder` is the "Supabase not configured" screen, which is
 meant to be one.

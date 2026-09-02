@@ -99,6 +99,7 @@ export function MessageList({
   hideImagesUntilTap = false,
   loading = false,
   emptyText = 'No messages yet.',
+  onModerateSender,
 }: {
   messages: ChatMessage[];
   meId: string | undefined;
@@ -106,6 +107,8 @@ export function MessageList({
   hideImagesUntilTap?: boolean;
   loading?: boolean;
   emptyText?: string;
+  /** Group rooms: long-press someone else's bubble to report or block. */
+  onModerateSender?: (senderId: string, senderName: string | null) => void;
 }) {
   const c = useTheme();
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
@@ -137,9 +140,7 @@ export function MessageList({
 
       const mine = item.senderId === meId;
       const showPhoto = Boolean(item.imageUrl) && (mine || !hideImagesUntilTap || revealed[item.id]);
-
-      return (
-        <View style={[styles.row, mine ? styles.rowMine : styles.rowTheirs]}>
+      const bubble = (
           <View
             style={[
               styles.bubble,
@@ -175,10 +176,25 @@ export function MessageList({
               {timeOf(item.createdAt)}
             </Text>
           </View>
+      );
+
+      return (
+        <View style={[styles.row, mine ? styles.rowMine : styles.rowTheirs]}>
+          {!mine && onModerateSender ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityHint="Long press to report or block"
+              onLongPress={() => onModerateSender(item.senderId, item.senderName ?? null)}
+              delayLongPress={400}>
+              {bubble}
+            </Pressable>
+          ) : (
+            bubble
+          )}
         </View>
       );
     },
-    [c, meId, showSenders, hideImagesUntilTap, revealed],
+    [c, meId, showSenders, hideImagesUntilTap, revealed, onModerateSender],
   );
 
   if (loading) {

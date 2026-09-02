@@ -382,6 +382,40 @@ await check('cannot delete the other side’s message', async () => {
   eq((await one(`select count(*) c from messages where sender_id=$1`, [ana])).c, before, 'ana messages');
 });
 
+console.log('\nUnfriend');
+const uf = {};
+for (const name of ['ufa', 'ufb']) {
+  const { rows: [u] } = await db.query(`insert into auth.users (email) values ($1) returning id`, [`${name}@iitb.ac.in`]);
+  uf[name] = u.id;
+  await db.query(
+    `update profiles set username=$2, trust_tier=1, college_id=$3, created_at=now()-interval '30 days' where id=$1`,
+    [u.id, `${name}_looty`, college.id]);
+}
+await asUser(uf.ufa, () => db.query(
+  `insert into friendships (requester_id, addressee_id) values ($1,$2)`, [uf.ufa, uf.ufb]));
+await asUser(uf.ufb, () => db.query(`update friendships set status='accepted' where addressee_id=$1`, [uf.ufb]));
+const ufThread = (await asUser(uf.ufa, async () =>
+  (await db.query(`select open_dm_thread($1) id`, [uf.ufb])).rows[0].id));
+await check('unfriend ends the DM thread and blocks further sends', async () => {
+  await asUser(uf.ufa, () => db.query(
+    `delete from friendships where requester_id=$1 and addressee_id=$2`, [uf.ufa, uf.ufb]));
+  eq((await one(`select ended_at is not null as x from threads where id=$1`, [ufThread])).x, true);
+  await denied(uf.ufa,
+    `insert into messages (thread_id, sender_id, body) values ($1,$2,'after unfriend')`,
+    [ufThread, uf.ufa]);
+});
+await check('adding them again reopens the same DM', async () => {
+  await asUser(uf.ufa, () => db.query(
+    `insert into friendships (requester_id, addressee_id) values ($1,$2)`, [uf.ufa, uf.ufb]));
+  await asUser(uf.ufb, () => db.query(`update friendships set status='accepted' where addressee_id=$1`, [uf.ufb]));
+  const again = (await asUser(uf.ufa, async () =>
+    (await db.query(`select open_dm_thread($1) id`, [uf.ufb])).rows[0].id));
+  eq(again, ufThread);
+  eq((await one(`select ended_at is null as x from threads where id=$1`, [ufThread])).x, true);
+  await asUser(uf.ufa, () => db.query(
+    `insert into messages (thread_id, sender_id, body) values ($1,$2,'back')`, [ufThread, uf.ufa]));
+});
+
 console.log('\nBlocking');
 await check('blocking is symmetric in effect', async () => {
   await asUser(cy, () => db.query(`insert into blocks (blocker_id, blocked_id) values ($1,$2)`, [cy, ana]));
@@ -402,7 +436,11 @@ await check('self-block refused', () =>
   denied(ana, `insert into blocks (blocker_id, blocked_id) values ($1,$1)`, [ana]));
 await check('blocking tears down the friendship', async () => {
   await asUser(ana, () => db.query(`insert into blocks (blocker_id, blocked_id) values ($1,$2)`, [ana, bo]));
-  eq((await one(`select count(*) c from friendships`)).c, 0, 'friendship survived a block');
+  eq((await one(
+    `select count(*) c from friendships
+     where least(requester_id, addressee_id) = least($1::uuid,$2::uuid)
+       and greatest(requester_id, addressee_id) = greatest($1::uuid,$2::uuid)`,
+    [ana, bo])).c, 0, 'friendship survived a block');
 });
 await check('blocked pair cannot post to their old thread', () =>
   denied(ana, `insert into messages (thread_id, sender_id, body) values ($1,$2,'still here')`, [threadId, ana]));

@@ -76,7 +76,7 @@ live as Tier 2 on 2026-08-31.
 ### What exists right now
 
 ```
-supabase/migrations/   31 migrations. Phase 1: colleges + domain allowlist,
+supabase/migrations/   32 migrations. Phase 1: colleges + domain allowlist,
                        profiles, verifications + bans + access gate, RLS +
                        column grants. Phase 2: blocks + friendships, threads +
                        messages, reports, Phase 2 RLS. Then: college email
@@ -93,9 +93,9 @@ supabase/migrations/   31 migrations. Phase 1: colleges + domain allowlist,
                        notification_prefs, username trigger SECURITY DEFINER,
                        chat-images bucket, push_tokens, screenshot notices,
                        group-message 30-day purge, export_my_data,
-                       connection-end closes thread
+                       connection-end closes thread, unfriend ends DM
 supabase/functions/    issue-college-code, delete-account (both deployed)
-supabase/tests/run.mjs 205 behaviour tests, run with `npm run test:db`
+supabase/tests/run.mjs 207 behaviour tests, run with `npm run test:db`
 supabase/seed.sql      sample colleges; domain list deliberately EMPTY
 mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/lib/tiers.ts     client mirror of the server tier gate — NOT security
@@ -145,7 +145,7 @@ Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
 
 ### Verified so far
 
-`npm run test:db` passes 205/205. `npx tsc --noEmit` is clean. The UI has rendered
+`npm run test:db` passes 207/207. `npx tsc --noEmit` is clean. The UI has rendered
 on a real Android device (2026-08-31, again 2026-09-01 through profile, groups,
 and a Study send) and once in a browser (2026-08-30). Chat images and push-token
 RPCs were verified against the live API on 2026-09-01; the 1:1 image picker has

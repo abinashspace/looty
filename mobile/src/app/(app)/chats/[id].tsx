@@ -151,6 +151,28 @@ export default function Chat() {
     );
   }
 
+  function confirmUnfriend() {
+    if (!thread || thread.type !== 'dm') return;
+    Alert.alert(
+      'Unfriend?',
+      'You can add them again later. This chat will end. You are not blocking them.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Unfriend',
+          style: 'destructive',
+          onPress: async () => {
+            const me = session?.user.id;
+            if (!me) return;
+            await supabase.from('friendships').delete().eq('requester_id', me).eq('addressee_id', thread.other_id);
+            await supabase.from('friendships').delete().eq('requester_id', thread.other_id).eq('addressee_id', me);
+            await load();
+          },
+        },
+      ],
+    );
+  }
+
   function confirmLeave() {
     if (!thread || thread.type !== 'connection') return;
     Alert.alert(
@@ -221,6 +243,11 @@ export default function Chat() {
             <Text style={{ color: c.textSecondary, fontSize: 12 }}>Connected</Text>
           ) : null}
         </View>
+        {thread?.type === 'dm' && !ended ? (
+          <Pressable onPress={confirmUnfriend} hitSlop={8} accessibilityRole="button">
+            <Text style={{ color: c.textSecondary, fontSize: 14 }}>Unfriend</Text>
+          </Pressable>
+        ) : null}
         {thread?.type === 'connection' && !ended ? (
           <Pressable onPress={confirmLeave} hitSlop={8} accessibilityRole="button">
             <Text style={{ color: c.textSecondary, fontSize: 14 }}>Leave</Text>

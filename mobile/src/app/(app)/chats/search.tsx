@@ -84,6 +84,17 @@ export default function Search() {
     if (threadId) router.push(`/(app)/chats/${threadId}`);
   }
 
+  async function cancelRequest(person: Result) {
+    setActing(person.id);
+    await supabase
+      .from('friendships')
+      .delete()
+      .eq('requester_id', session?.user.id ?? '')
+      .eq('addressee_id', person.id);
+    await run(query);
+    setActing(null);
+  }
+
   async function message(person: Result) {
     setActing(person.id);
     const { data: threadId, error } = await supabase.rpc('open_dm_thread', { p_other: person.id });
@@ -96,13 +107,13 @@ export default function Search() {
       case 'self':
         return null;
       case 'friends':
-        return { label: 'Message', onPress: () => message(person), primary: false };
+        return { label: 'Message', onPress: () => message(person), primary: false, muted: false };
       case 'pending_out':
-        return { label: 'Requested', onPress: () => {}, primary: false, muted: true };
+        return { label: 'Cancel', onPress: () => cancelRequest(person), primary: false, muted: false };
       case 'pending_in':
-        return { label: 'Accept', onPress: () => accept(person), primary: true };
+        return { label: 'Accept', onPress: () => accept(person), primary: true, muted: false };
       default:
-        return { label: 'Add', onPress: () => addFriend(person), primary: true };
+        return { label: 'Add', onPress: () => addFriend(person), primary: true, muted: false };
     }
   }
 

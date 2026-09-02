@@ -15,6 +15,15 @@
 
 ---
 
+## 2026-09-01 — Unfriend ends the DM; cancel request from search
+
+`leave_group` had a button; unfriend did not. Deleting an accepted friendship
+now ends the DM thread. `can_post_to_thread` re-checks the friendship for DMs.
+Adding them again and opening the thread clears `ended_at` so the same
+conversation continues. Search "Requested" is now Cancel.
+
+---
+
 ## 2026-09-01 — Edit profile after onboarding
 
 You could only set name, username and photo at signup. You → Edit profile

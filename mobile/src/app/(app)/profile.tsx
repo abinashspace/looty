@@ -162,6 +162,7 @@ export default function Profile() {
           <Text style={{ color: c.textSecondary }}>
             {profile.username ? `@${profile.username}` : 'No username yet'}
           </Text>
+          <LinkButton label="Edit profile" onPress={() => router.push('/profile-edit' as Href)} />
         </View>
       </View>
 

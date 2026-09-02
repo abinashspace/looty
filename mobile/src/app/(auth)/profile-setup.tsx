@@ -9,7 +9,6 @@
  * database is the authority and its errors are surfaced verbatim when they differ.
  */
 
-import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -17,37 +16,9 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/avatar';
 import { Body, Button, Field, Notice, Screen, Title } from '@/components/ui';
 import { useTheme } from '@/hooks/use-theme';
+import { downscaleProfilePhoto, uploadProfilePhoto } from '@/lib/profile-photo';
 import { useSession } from '@/lib/session';
-import { jpegBytesFromUri } from '@/lib/jpeg-bytes';
 import { supabase } from '@/lib/supabase';
-
-// A DP is never displayed larger than a Match card, so pixels beyond this are
-// bytes nobody sees. The picker hands back a full-camera-resolution crop —
-// 300 KB to 1.5 MB — and the Match feed downloads one per card, which makes
-// avatar egress the first Supabase limit this app would hit. At 512px it is
-// nearer 50 KB. The bucket's 2 MB cap is the backstop, not the plan.
-const DP_MAX_PX = 512;
-const DP_QUALITY = 0.7;
-
-/**
- * Shrinks a picked photo before it is ever uploaded.
- *
- * Only ever downscales — enlarging a small photo to 512 adds bytes and no detail.
- * Falls back to the original if manipulation fails: a resize going wrong should
- * not be the thing that stops someone finishing signup, and the storage policy's
- * size cap still applies either way.
- */
-async function downscale(uri: string, sourceWidth?: number): Promise<string> {
-  try {
-    const context = ImageManipulator.manipulate(uri);
-    if (!sourceWidth || sourceWidth > DP_MAX_PX) context.resize({ width: DP_MAX_PX });
-    const rendered = await context.renderAsync();
-    const out = await rendered.saveAsync({ format: SaveFormat.JPEG, compress: DP_QUALITY });
-    return out.uri;
-  } catch {
-    return uri;
-  }
-}
 
 const COURSES = [
   { label: 'B.Tech / B.E.', years: 4 },
@@ -97,7 +68,7 @@ export default function ProfileSetup() {
       // Downscale here rather than at submit, so the preview shows what will
       // actually be uploaded and Finish stays instant.
       const asset = res.assets[0];
-      setPhoto(await downscale(asset.uri, asset.width));
+      setPhoto(await downscaleProfilePhoto(asset.uri, asset.width));
       setError(null);
     }
   }, []);
@@ -110,15 +81,7 @@ export default function ProfileSetup() {
     try {
       let dpUrl: string | undefined;
       if (photo) {
-        // Path must start with the user's own id — storage policy keys on the first
-        // folder segment, so anything else is refused.
-        const path = `${session.user.id}/dp.jpg`;
-        const bytes = await jpegBytesFromUri(photo);
-        const { error: upErr } = await supabase.storage
-          .from('avatars')
-          .upload(path, bytes, { contentType: 'image/jpeg', upsert: true });
-        if (upErr) throw new Error(upErr.message);
-        dpUrl = supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl;
+        dpUrl = await uploadProfilePhoto(session.user.id, photo);
       }
 
       const { error: dbErr } = await supabase

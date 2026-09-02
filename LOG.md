@@ -15,6 +15,16 @@
 
 ---
 
+## 2026-09-01 — Edit profile after onboarding
+
+You could only set name, username and photo at signup. You → Edit profile
+updates display name any time, username on the existing 14-day cadence, and
+the optional photo (same 512px JPEG path). Setup now shares that upload
+helper. Postgres still refuses reserved names and a second username change
+inside 14 days; the screen maps those errors.
+
+---
+
 ## 2026-09-01 — Leave group and Leave Connected chat
 
 The server had `leave_group` and a Connection UPDATE policy; the app had

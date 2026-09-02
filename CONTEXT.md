@@ -103,6 +103,7 @@ mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/lib/supabase.ts  client; degrades to a setup screen when .env is absent
   src/lib/chat-image.ts  private upload + signed URL for 1:1 photos
   src/lib/push.ts      register/unregister Expo push token (no-op in Expo Go)
+  src/lib/profile-photo.ts  512px DP upload (setup and edit)
   src/components/avatar.tsx  Photo or initials; Match card variant
   src/components/ui.tsx  Screen / Field / Button / Notice / Toggle — the whole kit
   src/components/chat.tsx  ChatShell + MessageList + Composer (groups and DMs)
@@ -335,8 +336,9 @@ decision recorded in LOG.md.
   what proves someone is a student, not their name. `profiles.full_name` is dormant
   along with the rest of the ID machinery (§4.5).
 - **Username**: unique, lowercase letters/numbers/underscore, 3–20 characters,
-  changeable **once every 14 days**. Reserved blocklist: `looty`, `admin`,
-  `support`, `official`.
+  changeable **once every 14 days** from You → Edit profile. Reserved blocklist:
+  `looty`, `admin`, `support`, `official`. Display name and photo can change
+  any time.
 - **No date of birth is collected. There is no age gate.** This follows from the
   friends-app repositioning.
 - **Course length** captured at signup (B.Tech = 4 years, B.Sc = 3 years, etc.),

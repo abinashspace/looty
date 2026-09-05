@@ -74,10 +74,11 @@ hide while typing, and a Study send landed with the field visible.
 branches of the screenshot split were exercised, one per phone. Verified on
 device: a fresh signup reaching Tier 1 with full access, Match between two real
 accounts through mutual loot to Connected, `FLAG_SECURE` set inside a Connected
-chat on 12 and cleared on leaving, capture allowed on 15, the screenshot notice on
-both sides, and typing indicators. Two defects turned up and were fixed in
-migration 37 — see LOG.md, 2026-09-05. **1:1 photos are the one flow still never
-walked on a phone.**
+chat on 12 and cleared on leaving, capture allowed on 15, and typing indicators.
+Two defects turned up and were fixed in migration 37 — see LOG.md, 2026-09-05.
+**The Android 14+ screenshot notice is the exception: it fired once in six tries
+and is an open bug (§7).** **1:1 photos are the one flow still never walked on a
+phone.**
 
 `expo-notifications` must not be imported at module load in
 Expo Go (SDK 53 throws); `registerPushToken` lazy-requires it only in a native
@@ -189,10 +190,14 @@ not been tapped on a device.
 (Android 12), both on USB. Confirmed on device: a plain confirmed signup reaches
 Tier 1 with full access; Match between two real accounts through mutual loot into a
 Connected chat; `FLAG_SECURE` set inside a Connected chat on Android 12 and cleared
-on leaving; capture allowed on Android 15; the screenshot notice rendered on both
-sides over Realtime; typing indicators. The two defects this found are fixed in
-migration 37 and covered by the two tests added with it — both were checked against
-the unfixed code and do fail without it.
+on leaving; capture allowed on Android 15; typing indicators. The two defects this
+found are fixed in migration 37 and covered by the two tests added with it — both
+were checked against the unfixed code and do fail without it.
+
+**Not verified, despite an earlier claim in this file that it was:** the Android
+14+ screenshot notice. It fired once in six attempts (§7). The inbox "Screenshot"
+label added in migration 37 is therefore also unconfirmed on a device — it is
+covered by a database test, but the notice has to fire for it to be visible.
 
 The Phase 2 tests run as an actual `authenticated` role with a JWT claim set, so
 RLS genuinely applies to them. Phase 1 tests run as superuser and therefore check
@@ -796,15 +801,28 @@ badge (§3.1) makes this visible rather than preventing it, which is the intende
 behaviour — but it does mean "verified" means "has a college address", not "is
 currently enrolled".
 
-**Screenshot handling — DECIDED, split by Android version. Built and now walked on
-both sides of the split (2026-09-05).** Android 14+ notifies via
-`record_screenshot()` (a system line in the thread). Below 14, `FLAG_SECURE` is set
-only while a Connected chat is open. DMs are not covered. `anon` cannot call the
-RPC (42501, live).
+**Screenshot handling — DECIDED, split by Android version. The two halves are NOT
+equally proven.** Android 14+ notifies via `record_screenshot()` (a system line in
+the thread). Below 14, `FLAG_SECURE` is set only while a Connected chat is open.
+DMs are not covered. `anon` cannot call the RPC (42501, live).
 
-Walked on device: on Android 12 a capture inside a Connected chat returns nothing
-and the flag **clears on leaving**, so the per-Activity trap below is handled. On
-Android 15 the capture succeeds and both people see the notice.
+**Below 14 — solid.** On Android 12 a capture inside a Connected chat returns
+nothing, and the flag **clears on leaving**, so the per-Activity trap below is
+handled. Repeatable and deterministic.
+
+**14+ — unreliable, and this is an open bug.** On Android 15 the notice fired
+**once in six attempts** on 2026-09-05, all in Expo Go, all with the thread open
+and focused. When it fires the whole chain is correct: both sides see the line,
+delivered live over Realtime. When it does not fire, nothing is written — the RPC
+is never reached, and `void supabase.rpc(...)` swallows any error, so a user would
+never know. Do not describe this feature as working until it has been re-tested in
+a native/EAS build.
+
+The suspect is `expo-screen-capture`'s `registerCallback()`, which guards on an
+`isRegistered` flag and never re-registers, while
+`registerScreenCaptureCallback` is bound to an Activity instance. Expo Go's
+Activity lifecycle is not a standalone app's, so this may be an Expo Go artifact —
+unproven either way. A fresh launch does not make it fire; that was tested.
 
 Three implementation traps to respect when building this:
 

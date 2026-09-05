@@ -15,6 +15,40 @@
 
 ---
 
+## 2026-09-05 — Correction: the Android 14+ screenshot notice is not reliable
+
+**An earlier entry today said the screenshot notice was walked and working on both
+sides. That claim was based on a single observation and is withdrawn.**
+
+Retested after migration 37 went live, on the Realme (Android 15), in Expo Go, with
+the Connected thread open and focused each time. Result across the day: **one
+success in six attempts.** The success is real — when it fires, the RPC returns no
+error, the row is written, and both people see the line live over Realtime. But
+five attempts wrote nothing at all, confirmed by querying `messages` directly
+rather than trusting the thread view, which still shows the older notice and is
+easy to misread as a fresh one.
+
+Tested and ruled out: being on the wrong screen (the dump confirms the thread was
+open), the one-minute dedup (hours apart), and a stale app (a fresh force-stop and
+relaunch does not make it fire).
+
+The suspect is in `expo-screen-capture`: `registerCallback()` guards on an
+`isRegistered` flag and never re-registers, while Android's
+`registerScreenCaptureCallback` binds to an Activity instance. If that Activity is
+replaced, the module still believes it is registered. Expo Go's Activity lifecycle
+is not a standalone app's, so this may not reproduce in a real build — unproven.
+
+**Consequence for the plan.** This cannot be settled in Expo Go, which makes the
+EAS build the next real step rather than a nice-to-have. Note also that
+`pulseTyping`-style fire-and-forget RPCs hide this class of failure:
+`void supabase.rpc(...)` with no error handling means a user sees nothing when it
+breaks. Worth revisiting once the cause is known.
+
+The `FLAG_SECURE` half, below Android 14, is unaffected and remains solid —
+repeatable and deterministic on the Samsung.
+
+---
+
 ## 2026-09-05 — Migration 37 is live
 
 `npx supabase db push --linked` applied it. Verified on the remote, not assumed:

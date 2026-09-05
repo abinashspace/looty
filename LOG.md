@@ -15,6 +15,23 @@
 
 ---
 
+## 2026-09-05 — The violet mismatch is settled: the logo wins
+
+The entry below committed a known mismatch — the mark at `#3C0BA1`, the UI accent
+at `#7C3AED`. Owner's call: **use the logo violet.** `accent` is now `#3C0BA1`, so
+the icon and every button, link, active tab and unread dot are one colour.
+
+Dark could not take it literally: `#3C0BA1` on `#100D18` is 1.6:1, unreadable. It
+uses the same 260° hue lightened until it passes — `#9B70F5`, 5.5:1. That replaces
+`#A855F7`, the Bright Purple from the original palette, which is now unused along
+with Primary `#7C3AED` and Primary Dark `#5B21B6`.
+
+Contrast is better than before, not merely acceptable: every pair in both themes
+clears 4.5:1. White on the accent is 12:1 in light. The one pair that used to sit
+under the bar in dark — `accentText` on `accent`, 4.24 — is now 4.82.
+
+---
+
 ## 2026-09-05 — Violet palette and a new logo
 
 Owner set a violet palette, replacing the blue the app inherited from the Expo

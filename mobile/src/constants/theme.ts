@@ -8,10 +8,15 @@
  * would have shipped two different products to two users of the same phone.
  *
  * Note on `accent`: it is the one interactive colour — buttons, links, the active
- * tab, unread dots, and your own chat bubbles. Light uses Primary (#7C3AED);
- * dark uses Bright Purple (#A855F7), which is legible on a dark ground where the
- * deeper violet is not. `accentText` is what sits *on* accent, so it flips: white
- * on light, near-black on dark.
+ * tab, unread dots, and your own chat bubbles. It is the **logo's** violet,
+ * #3C0BA1, so the icon and the interface are the same colour — settled by the
+ * owner on 2026-09-05, choosing the mark over the brighter #7C3AED originally
+ * given as Primary.
+ *
+ * Dark cannot use #3C0BA1: at 1.6:1 on this ground it is unreadable. It uses the
+ * same hue (260°) lightened until it passes — #9B70F5, 5.5:1 on the background.
+ * `accentText` is what sits *on* accent, so it flips: white on light, near-black
+ * on dark.
  *
  * Keep this away from pink and red. Looty is a friends app and the palette is
  * part of carrying that — see CONTEXT.md §1. Violet is fine; rose is not.
@@ -43,7 +48,7 @@ export const Colors = {
     // Darkened just enough to pass; visually the same colour.
     textSecondary: '#776F8A',
     border: '#E9E3F5',
-    accent: '#7C3AED',
+    accent: '#3C0BA1',
     accentText: '#FFFFFF',
     danger: '#C4342B',
     online: '#22C55E',
@@ -55,7 +60,7 @@ export const Colors = {
     bubble: '#2A2140',
     textSecondary: '#A79FBC',
     border: '#2E2842',
-    accent: '#A855F7',
+    accent: '#9B70F5',
     accentText: '#1E1B2E',
     danger: '#F0776C',
     online: '#22C55E',

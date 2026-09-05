@@ -15,6 +15,20 @@
 
 ---
 
+## 2026-09-05 — Migration 37 is live
+
+`npx supabase db push --linked` applied it. Verified on the remote, not assumed:
+`my_threads()` now returns `last_kind`, `match_feed()` carries the
+`college_id is null` fallback, and `my_threads`, `match_feed`, `record_screenshot`
+and `set_typing` are all `{postgres=X, service_role=X, authenticated=X}` — **no
+`anon`**.
+
+That last check is the point of doing it. Dropping a function drops its grants, and
+this project has twice shipped functions open to `anon` while looking fine. The
+`lock_client_functions()` sweep held.
+
+---
+
 ## 2026-09-05 — The violet mismatch is settled: the logo wins
 
 The entry below committed a known mismatch — the mark at `#3C0BA1`, the UI accent

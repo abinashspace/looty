@@ -121,7 +121,7 @@ supabase/migrations/   37 migrations. Phase 1: colleges + domain allowlist,
                        connection-end closes thread, unfriend ends DM, my_blocks,
                        thread_reads + inbox unread, sign-in email grants Tier 1,
                        1:1 typing heartbeat, inbox last_kind + collegeless
-                       Match fallback (37, NOT YET DEPLOYED)
+                       Match fallback
 supabase/functions/    issue-college-code, delete-account (both deployed)
 supabase/tests/run.mjs 231 behaviour tests, run with `npm run test:db`
 supabase/seed.sql      sample colleges; domain list deliberately EMPTY
@@ -284,9 +284,7 @@ returned `42501` then succeeded, and `match_feed` showed the other test student.
 ### Live infrastructure
 
 **Supabase project `zsfjwlmeeodsiwruvine`**, region `ap-south-1` (Mumbai),
-Postgres 17.6, on the free plan. Migrations **1–36 are deployed**; **37 is written,
-tested and NOT pushed** — it drops and recreates `my_threads()` and `match_feed()`,
-so the client briefly calls a missing function during the push. Also deployed: the
+Postgres 17.6, on the free plan. All 37 migrations are deployed, plus the
 `issue-college-code` and `delete-account` Edge Functions. The repo is linked
 via the Supabase CLI, so `npx supabase db push` applies new migrations directly —
 it authenticates with the stored access token and does not prompt for the database

@@ -911,6 +911,16 @@ await check('all_india scope widens the feed', async () => {
   const ids = await feedFor(mia);
   if (!ids.includes(far)) throw new Error('other-college user missing from all_india feed');
 });
+// A confirmed Gmail is full access since 2026-09-04, so most accounts have no
+// college. The default scope is same_college, and comparing to a null college
+// matched nobody — the feed was permanently empty for them.
+await check('a caller with no college still gets a feed on the default scope', async () => {
+  const nomad = await mkUser('nomad', { tier: 1, collegeId: null });
+  eq((await one(`select match_scope from profiles where id=$1`, [nomad])).match_scope,
+    'same_college', 'fixture is on the default scope');
+  const ids = await feedFor(nomad);
+  if (ids.length === 0) throw new Error('collegeless caller got an empty feed');
+});
 await check('same-gender safety toggle filters the feed', async () => {
   const man = await mkUser('man1', { gender: 'man' });
   await db.query(`update profiles set match_same_gender_only=true where id=$1`, [mia]);
@@ -1471,6 +1481,21 @@ await check('an outsider cannot record a screenshot on someone else\'s thread', 
   await asUser(imgC, () => db.query(`select record_screenshot($1)`, [scThread]));
   eq((await one(
     `select count(*) c from messages where thread_id=$1 and kind='screenshot'`, [scThread])).c, 1);
+});
+// Without the kind the inbox printed the notice's body, so the row read
+// "screenshot" — indistinguishable from someone typing the word.
+await check('the inbox can tell a screenshot notice from a typed message', async () => {
+  const row = await asUser(scB, async () =>
+    (await db.query(`select last_kind, last_body from my_threads() where thread_id=$1`,
+      [scThread])).rows[0]);
+  eq(row.last_kind, 'screenshot', 'last_kind');
+  await asUser(scB, () => db.query(
+    `insert into messages (thread_id, sender_id, body) values ($1,$2,'screenshot')`,
+    [scThread, scB]));
+  const typed = await asUser(scB, async () =>
+    (await db.query(`select last_kind, last_body from my_threads() where thread_id=$1`,
+      [scThread])).rows[0]);
+  eq(typed.last_kind, 'user', 'a typed "screenshot" is still a user message');
 });
 
 console.log('\nTyping indicators (1:1 only)');

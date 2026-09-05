@@ -14,8 +14,10 @@ setup, group rooms, DMs (text + images), username search, friend requests, Looty
 Match, and the moderation appeal flow. A confirmed sign-in address is full access;
 college email is the College Verified badge.
 
-It has been run on a real Android phone (USB + Expo Go 57). Correctness also
-rests on 229 database tests, typechecking, and direct calls against the live API
+It has been run on two real Android phones at once (USB + Expo Go 57), which is how
+the screenshot split, Match between two accounts, and typing indicators were
+confirmed. Correctness also
+rests on 231 database tests, typechecking, and direct calls against the live API
 — including as a real Tier 2 user (groups, DMs, friends, Match). A green suite is
 not proof on this project.
 

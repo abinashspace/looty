@@ -15,6 +15,59 @@
 
 ---
 
+## 2026-09-05 — Walked on two phones at once. Two defects found and fixed
+
+First session with **two devices on USB**: the Realme RMX3771 (Android 15) as
+`@abinashspace` (Tier 2) and a Samsung SM-F415F (Android 12) as a new account
+`@priya`. The pair is lucky — 15 and 12 sit either side of the Android 14 line, so
+both branches of the screenshot split got exercised, one per phone.
+
+**Walked and working.** A fresh signup reaching **Tier 1 with full access** — the
+first proof on a device of the 2026-09-04 reversal, which until now had only been
+checked by SQL backfill. Match with two real accounts: both saw each other on All
+India, mutual loot opened the Connected chat. `FLAG_SECURE` set inside a Connected
+chat on Android 12 (`screencap` returned 0 bytes) and **cleared on leaving** (81KB
+after exit) — the per-Activity trap §7 warns about is handled. Capture allowed on
+Android 15 (98KB), the intended inversion. The screenshot notice fired on both
+sides live over Realtime: "You took a screenshot. They were told." and "They took a
+screenshot of this chat." Typing indicators: `set_typing` returns no error, the row
+lands in `thread_typing`, and the peer's header shows "typing…".
+
+**Two defects found, both fixed here (migration 37).**
+
+1. **The Chats inbox printed a screenshot notice as the literal string
+   "screenshot".** `my_threads()` returned `last_body` but not `kind`, so the
+   client could not tell a system notice from someone typing the word.
+   `my_threads()` now returns `last_kind` and the inbox renders "Screenshot".
+2. **A user with no college got a permanently empty Match feed.** `match_scope`
+   defaults to `same_college` and the filter compared `p.college_id` to a NULL,
+   which is never true. Before 2026-09-04 this was nearly unreachable — everyone
+   with access held a college address. Now a Gmail is full access, so this was the
+   default experience for most new accounts, on a screen that told them "Nobody new
+   at your college right now" when they have no college. `match_feed` now falls
+   back to all-India when the caller has no college; the toggle explains itself
+   instead of silently filtering to nobody.
+
+Tests **231**, up from 229. Both new tests were checked against the unfixed code
+first and do fail without it.
+
+**Why.** CONTEXT listed screenshot handling as "built, not walked on a device" and
+typing indicators as built-but-unverified. Both are now walked. The two defects
+were only reachable with a second real account, which is exactly why they survived
+229 passing tests.
+
+**Notes that cost time, for the next device session.** Expo Go fast refresh did
+**not** pick up source edits — every change needed `am force-stop` plus a relaunch.
+Hermes `console.log` reaches neither logcat nor a Metro whose stdout is redirected,
+so the only working probe channel was an on-screen `Alert.alert`, read back with
+`uiautomator dump`. The Samsung dropped off adb twice mid-session; USB mode
+reverting to charging-only is the likely cause.
+
+**Still not walked:** 1:1 photo send, including the "Photo · tap to view" deferred
+fetch in Connected chats.
+
+---
+
 ## 2026-09-05 — Typing indicators in 1:1 chats
 
 DMs and Connected chats show "typing…" while the other person is composing.

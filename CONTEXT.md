@@ -66,9 +66,20 @@ college email at `thangavelu.edu.in`, finished profile setup as **Abinash S /
 Match, Looted you, Chats, and You. Study / Sports / Friends are joined. A group
 text send was verified on device. On 2026-09-02 the composer was walked again:
 Expo Go still overlays the IME, `ChatShell` pads by keyboard `screenY`, tabs
-hide while typing, and a Study send landed with the field visible. 1:1 photos,
-screenshot notices / FLAG_SECURE, and Match with a second student have not been
-walked on a phone. `expo-notifications` must not be imported at module load in
+hide while typing, and a Study send landed with the field visible.
+
+**On 2026-09-05 the app was walked on two phones at once** — the Realme (Android
+15) as `@abinashspace` and a Samsung SM-F415F (Android 12) as a new account
+`@priya`. The two Android versions sit either side of the 14 line, so both
+branches of the screenshot split were exercised, one per phone. Verified on
+device: a fresh signup reaching Tier 1 with full access, Match between two real
+accounts through mutual loot to Connected, `FLAG_SECURE` set inside a Connected
+chat on 12 and cleared on leaving, capture allowed on 15, the screenshot notice on
+both sides, and typing indicators. Two defects turned up and were fixed in
+migration 37 — see LOG.md, 2026-09-05. **1:1 photos are the one flow still never
+walked on a phone.**
+
+`expo-notifications` must not be imported at module load in
 Expo Go (SDK 53 throws); `registerPushToken` lazy-requires it only in a native
 build.
 
@@ -90,7 +101,7 @@ live as Tier 2 on 2026-08-31.
 ### What exists right now
 
 ```
-supabase/migrations/   36 migrations. Phase 1: colleges + domain allowlist,
+supabase/migrations/   37 migrations. Phase 1: colleges + domain allowlist,
                        profiles, verifications + bans + access gate, RLS +
                        column grants. Phase 2: blocks + friendships, threads +
                        messages, reports, Phase 2 RLS. Then: college email
@@ -109,9 +120,10 @@ supabase/migrations/   36 migrations. Phase 1: colleges + domain allowlist,
                        group-message 30-day purge, export_my_data,
                        connection-end closes thread, unfriend ends DM, my_blocks,
                        thread_reads + inbox unread, sign-in email grants Tier 1,
-                       1:1 typing heartbeat
+                       1:1 typing heartbeat, inbox last_kind + collegeless
+                       Match fallback (37, NOT YET DEPLOYED)
 supabase/functions/    issue-college-code, delete-account (both deployed)
-supabase/tests/run.mjs 229 behaviour tests, run with `npm run test:db`
+supabase/tests/run.mjs 231 behaviour tests, run with `npm run test:db`
 supabase/seed.sql      sample colleges; domain list deliberately EMPTY
                        (a missing domain now costs a badge, not access)
 mobile/                Expo app (SDK 57, RN 0.86), Android-only
@@ -167,11 +179,20 @@ Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
 
 ### Verified so far
 
-`npm run test:db` passes 229/229. `npx tsc --noEmit` is clean. The UI has rendered
+`npm run test:db` passes 231/231. `npx tsc --noEmit` is clean. The UI has rendered
 on a real Android device (2026-08-31, again 2026-09-01 through profile, groups,
 and a Study send) and once in a browser (2026-08-30). Chat images and push-token
 RPCs were verified against the live API on 2026-09-01; the 1:1 image picker has
 not been tapped on a device.
+
+**Two-phone walkthrough, 2026-09-05.** Realme (Android 15) and Samsung SM-F415F
+(Android 12), both on USB. Confirmed on device: a plain confirmed signup reaches
+Tier 1 with full access; Match between two real accounts through mutual loot into a
+Connected chat; `FLAG_SECURE` set inside a Connected chat on Android 12 and cleared
+on leaving; capture allowed on Android 15; the screenshot notice rendered on both
+sides over Realtime; typing indicators. The two defects this found are fixed in
+migration 37 and covered by the two tests added with it — both were checked against
+the unfixed code and do fail without it.
 
 The Phase 2 tests run as an actual `authenticated` role with a JWT claim set, so
 RLS genuinely applies to them. Phase 1 tests run as superuser and therefore check
@@ -263,7 +284,9 @@ returned `42501` then succeeded, and `match_feed` showed the other test student.
 ### Live infrastructure
 
 **Supabase project `zsfjwlmeeodsiwruvine`**, region `ap-south-1` (Mumbai),
-Postgres 17.6, on the free plan. All 36 migrations are deployed, plus the
+Postgres 17.6, on the free plan. Migrations **1–36 are deployed**; **37 is written,
+tested and NOT pushed** — it drops and recreates `my_threads()` and `match_feed()`,
+so the client briefly calls a missing function during the push. Also deployed: the
 `issue-college-code` and `delete-account` Edge Functions. The repo is linked
 via the Supabase CLI, so `npx supabase db push` applies new migrations directly —
 it authenticates with the stored access token and does not prompt for the database
@@ -311,7 +334,21 @@ Notes that cost time to rediscover:
   and is on the user PATH (new shells pick it up; this agent's shell often does
   not — prepend that folder). A junction exists at
   `%LOCALAPPDATA%\Android\Sdk\platform-tools` so Expo can find `adb`.
-- **Phone:** Realme RMX3771, serial `7HG6IRAEKNWG4L5D`. USB debugging on. Expo Go
+- **Debugging inside Expo Go is nearly blind, learned 2026-09-05.** Fast refresh
+  did **not** pick up source edits — every change needed
+  `adb shell am force-stop host.exp.exponent` followed by a relaunch. Hermes
+  `console.log` reaches neither logcat nor a Metro whose stdout is redirected to a
+  file, so the only probe channel that worked was `Alert.alert`, read back with
+  `uiautomator dump`. Budget for this before trying to diagnose anything on device.
+- **Driving the UI from adb.** `uiautomator dump /sdcard/ui.xml` then
+  `adb exec-out cat` gives tappable bounds; `input tap` needs the screen to have
+  settled or it lands on the previous screen. Run adb from Git Bash with
+  `MSYS_NO_PATHCONV=1`, or `/sdcard/...` is rewritten into a Windows path.
+- **Second phone:** Samsung SM-F415F, serial `RZ8NA28NKEM`, Android 12, Expo Go
+  57.0.9. Useful precisely because it is below Android 14 — it is the only way to
+  exercise the `FLAG_SECURE` half of the screenshot split. It dropped off adb twice
+  in one session; check the USB mode has not reverted to charging-only.
+- **Phone:** Realme RMX3771, serial `7HG6IRAEKNWG4L5D`, Android 15. USB debugging on. Expo Go
   **57.0.9** was sideloaded (`adb install`); do not rely on Play Store Expo Go
   matching SDK 57. Keep the USB cable in — the router isolates Wi-Fi clients.
 - **Start the app on the phone:**
@@ -761,10 +798,15 @@ badge (§3.1) makes this visible rather than preventing it, which is the intende
 behaviour — but it does mean "verified" means "has a college address", not "is
 currently enrolled".
 
-**Screenshot handling — DECIDED, split by Android version. Built, not walked on a
-device.** Android 14+ notifies via `record_screenshot()` (a system line in the
-thread). Below 14, `FLAG_SECURE` is set only while a Connected chat is open.
-DMs are not covered. `anon` cannot call the RPC (42501, live).
+**Screenshot handling — DECIDED, split by Android version. Built and now walked on
+both sides of the split (2026-09-05).** Android 14+ notifies via
+`record_screenshot()` (a system line in the thread). Below 14, `FLAG_SECURE` is set
+only while a Connected chat is open. DMs are not covered. `anon` cannot call the
+RPC (42501, live).
+
+Walked on device: on Android 12 a capture inside a Connected chat returns nothing
+and the flag **clears on leaving**, so the per-Activity trap below is handled. On
+Android 15 the capture succeeds and both people see the notice.
 
 Three implementation traps to respect when building this:
 
@@ -800,7 +842,8 @@ app-wide; college-scope and same-gender filters in Match; unmatch/leave; message
 retention (DMs indefinite, groups 30-day rolling); notification granularity; read
 receipts in DMs only, no last-seen. Inbox unread (you have not opened since they
 last wrote) is built; that is not a read receipt. Typing indicators are built in
-1:1 chats only — groups of a thousand do not get them.
+1:1 chats only — groups of a thousand do not get them — and were walked on two
+phones on 2026-09-05.
 
 **Rejected, do not revisit without a decision:** invite-based vouching (verified
 students inviting others) was considered and declined.

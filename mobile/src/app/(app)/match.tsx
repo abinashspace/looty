@@ -128,6 +128,17 @@ function Feed() {
 
   async function toggleScope() {
     if (!prefs) return;
+    if (!profile?.college_id) {
+      Alert.alert(
+        'No college on your account',
+        'Scoping to a college needs a confirmed college email. Without one there is nothing to scope to, so Match shows everyone.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Get the badge', onPress: () => router.push('/(auth)/verify') },
+        ],
+      );
+      return;
+    }
     const next = prefs.match_scope === 'same_college' ? 'all_india' : 'same_college';
     setPrefs({ ...prefs, match_scope: next });
     await supabase.from('profiles').update({ match_scope: next }).eq('id', session?.user.id ?? '');
@@ -175,7 +186,9 @@ function Feed() {
         <View style={{ flex: 1 }} />
         <Pressable onPress={toggleScope} hitSlop={8} accessibilityRole="button">
           <Text style={{ color: c.accent, fontSize: 14, fontWeight: '600' }}>
-            {prefs?.match_scope === 'all_india' ? 'All India' : 'My college'}
+            {prefs?.match_scope === 'all_india' || !profile?.college_id
+              ? 'All India'
+              : 'My college'}
           </Text>
         </Pressable>
         <Pressable onPress={toggleSameGender} hitSlop={8} accessibilityRole="button">
@@ -203,7 +216,7 @@ function Feed() {
       ) : cards.length === 0 ? (
         <View style={styles.centre}>
           <Text style={{ color: c.textSecondary, textAlign: 'center', lineHeight: 21 }}>
-            {prefs?.match_scope === 'same_college'
+            {prefs?.match_scope === 'same_college' && profile?.college_id
               ? 'Nobody new at your college right now. Try All India above.'
               : 'Nobody new right now. Check back later.'}
           </Text>

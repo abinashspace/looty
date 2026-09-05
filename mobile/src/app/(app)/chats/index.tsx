@@ -27,6 +27,7 @@ type Thread = {
   other_display_name: string | null;
   other_dp_url: string | null;
   last_body: string | null;
+  last_kind: string | null;
   last_image: boolean | null;
   last_at: string;
   ended_at: string | null;
@@ -184,9 +185,11 @@ export default function Chats() {
                   numberOfLines={1}>
                   {item.ended_at
                     ? 'This chat has ended'
-                    : item.last_image && !item.last_body
-                      ? 'Photo'
-                      : (item.last_body ?? 'Say hello')}
+                    : item.last_kind === 'screenshot'
+                      ? 'Screenshot'
+                      : item.last_image && !item.last_body
+                        ? 'Photo'
+                        : (item.last_body ?? 'Say hello')}
                 </Text>
               </View>
               {item.unread ? (

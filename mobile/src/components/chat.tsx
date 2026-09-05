@@ -149,7 +149,7 @@ export function MessageList({
               styles.bubble,
               mine
                 ? { backgroundColor: c.accent }
-                : { backgroundColor: c.backgroundElement, borderColor: c.border, borderWidth: 1 },
+                : { backgroundColor: c.bubble, borderColor: c.border, borderWidth: 1 },
             ]}>
             {showSenders && !mine && item.senderName ? (
               <Text style={[styles.sender, { color: c.accent }]}>{item.senderName}</Text>

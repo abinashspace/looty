@@ -15,6 +15,44 @@
 
 ---
 
+## 2026-09-05 — Violet palette and a new logo
+
+Owner set a violet palette, replacing the blue the app inherited from the Expo
+starter. Light is the palette as given; **dark is derived from the same hues**,
+because `userInterfaceStyle` is `automatic` and both phones rendered dark today —
+leaving dark on the old blue would have shipped two different-looking apps to two
+users of the same phone.
+
+Owner also drew a new mark: two violet eyes, `#3C0BA1`. All five icon assets were
+cut from it — `icon.png`, the three Android adaptive files, and `splash-icon.png`.
+The source had white baked in with no alpha, so the background was flood-filled
+from the corners only, which removes the outer white and keeps the eye whites.
+The monochrome icon is derived rather than drawn: every white pixel is knocked out,
+leaving rings plus pupils, which is what Android 13+ themed icons need.
+
+Two token changes came with it. `bubble` is **new** — the palette separates Card
+from Chat Bubble, but incoming bubbles shared `backgroundElement` with cards and
+inputs, so without it every input would have turned violet. `backgroundSelected`
+was **removed**: zero uses, a starter-template leftover.
+
+`textSecondary` is `#776F8A`, not the `#7C748F` given. As given it measures 4.20:1
+on the background — under the 4.5 body-text bar, on the most-used token in the app.
+Darkened until it passes; visually the same colour.
+
+Splash `backgroundColor` went from `#208AEF` to `#FAF8FF` with a dark variant, and
+`imageWidth` from 76 to 160 — 76 was set for a square mark and the new one is 2:1.
+The adaptive icon background went from `#E6F4FE` to `#FAF8FF`.
+
+**Open, deliberately.** The mark is `#3C0BA1` and the UI accent is `#7C3AED`. They
+do not match. Committed as-is because both are the owner's; one of them should move.
+
+**Not yet seen.** Icons and splash only apply in a native build, so nothing here has
+been on a phone. Two colours from the palette are unused: Primary Dark `#5B21B6`
+needs pressed states, which no button has, and Online `#22C55E` needs a presence
+feature, which CONTEXT §7 settles against.
+
+---
+
 ## 2026-09-05 — Walked on two phones at once. Two defects found and fixed
 
 First session with **two devices on USB**: the Realme RMX3771 (Android 15) as

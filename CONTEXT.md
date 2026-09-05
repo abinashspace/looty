@@ -90,7 +90,7 @@ live as Tier 2 on 2026-08-31.
 ### What exists right now
 
 ```
-supabase/migrations/   35 migrations. Phase 1: colleges + domain allowlist,
+supabase/migrations/   36 migrations. Phase 1: colleges + domain allowlist,
                        profiles, verifications + bans + access gate, RLS +
                        column grants. Phase 2: blocks + friendships, threads +
                        messages, reports, Phase 2 RLS. Then: college email
@@ -108,9 +108,10 @@ supabase/migrations/   35 migrations. Phase 1: colleges + domain allowlist,
                        chat-images bucket, push_tokens, screenshot notices,
                        group-message 30-day purge, export_my_data,
                        connection-end closes thread, unfriend ends DM, my_blocks,
-                       thread_reads + inbox unread, sign-in email grants Tier 1
+                       thread_reads + inbox unread, sign-in email grants Tier 1,
+                       1:1 typing heartbeat
 supabase/functions/    issue-college-code, delete-account (both deployed)
-supabase/tests/run.mjs 220 behaviour tests, run with `npm run test:db`
+supabase/tests/run.mjs 229 behaviour tests, run with `npm run test:db`
 supabase/seed.sql      sample colleges; domain list deliberately EMPTY
                        (a missing domain now costs a badge, not access)
 mobile/                Expo app (SDK 57, RN 0.86), Android-only
@@ -166,7 +167,7 @@ Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
 
 ### Verified so far
 
-`npm run test:db` passes 220/220. `npx tsc --noEmit` is clean. The UI has rendered
+`npm run test:db` passes 229/229. `npx tsc --noEmit` is clean. The UI has rendered
 on a real Android device (2026-08-31, again 2026-09-01 through profile, groups,
 and a Study send) and once in a browser (2026-08-30). Chat images and push-token
 RPCs were verified against the live API on 2026-09-01; the 1:1 image picker has
@@ -177,7 +178,7 @@ RLS genuinely applies to them. Phase 1 tests run as superuser and therefore chec
 grant *metadata* rather than live enforcement — a weaker guarantee, worth knowing
 when reading them.
 
-**Against the live database:** all 25 tables exist, and every one of them refuses
+**Against the live database:** all 26 tables exist, and every one of them refuses
 the `anon` role outright (`42501 permission denied`). Re-checked for
 `notification_prefs` and `push_tokens` on 2026-09-01. That matters more than it looks — the anon
 key ships inside the APK and anyone can extract it in a minute, so "anon can
@@ -262,7 +263,7 @@ returned `42501` then succeeded, and `match_feed` showed the other test student.
 ### Live infrastructure
 
 **Supabase project `zsfjwlmeeodsiwruvine`**, region `ap-south-1` (Mumbai),
-Postgres 17.6, on the free plan. All 35 migrations are deployed, plus the
+Postgres 17.6, on the free plan. All 36 migrations are deployed, plus the
 `issue-college-code` and `delete-account` Edge Functions. The repo is linked
 via the Supabase CLI, so `npx supabase db push` applies new migrations directly —
 it authenticates with the stored access token and does not prompt for the database
@@ -699,9 +700,12 @@ thread_reads        thread_id, user_id, last_read_at
                     -- caller-only; no client table grants; mark_thread_read RPC.
                     -- unread in my_threads is "they wrote since I opened", not a
                     -- receipt the other person can see
+thread_typing       thread_id, user_id, updated_at
+                    -- 1:1 heartbeat; SELECT is peer-only so Realtime works;
+                    -- writes via set_typing / clear_typing; 4-second window
 ```
 
-That is **all 25 tables**, verified against the live database on 2026-09-02.
+That is **all 26 tables**, verified against the live database on 2026-09-05.
 Account deletion is an Edge Function (`delete-account`): Auth Admin API, removes
 avatars and chat-images, re-asserts a permanent-ban hash if needed, then deletes
 `auth.users`. The cascade takes the rest. `banned_identities` has no `user_id`
@@ -748,8 +752,8 @@ rating reasoning in §1 and §3.6 was written for a college-gated population.
 Stranger-matching and user images open to any signup is a different profile from
 the same features behind a college wall. Non-personalised ads app-wide still
 covers the DPDP targeting question, and nothing about the removal of the gate
-touches the no-romantic-framing rule — but the listing has not been re-read
-against the change, and it should be before submission.
+touches the no-romantic-framing rule. The listing was re-read on 2026-09-05
+(`legal/play-listing.md`); still confirm it in Play Console at submission.
 
 **A student can hold their college address after graduating.** Most Indian college
 mailboxes stay live for years, so a 2020 graduate can still verify today. The Alumni
@@ -793,9 +797,10 @@ That is accepted; RLS still enforces them.
 
 Flag if any of these are wrong: image blur in connected chats; non-personalised ads
 app-wide; college-scope and same-gender filters in Match; unmatch/leave; message
-retention (DMs indefinite, groups 30-day rolling); notification granularity; typing
-indicators yes, read receipts in DMs only, no last-seen. Inbox unread (you have
-not opened since they last wrote) is built; that is not a read receipt.
+retention (DMs indefinite, groups 30-day rolling); notification granularity; read
+receipts in DMs only, no last-seen. Inbox unread (you have not opened since they
+last wrote) is built; that is not a read receipt. Typing indicators are built in
+1:1 chats only — groups of a thousand do not get them.
 
 **Rejected, do not revisit without a decision:** invite-based vouching (verified
 students inviting others) was considered and declined.

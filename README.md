@@ -15,7 +15,7 @@ Match, and the moderation appeal flow. A confirmed sign-in address is full acces
 college email is the College Verified badge.
 
 It has been run on a real Android phone (USB + Expo Go 57). Correctness also
-rests on 220 database tests, typechecking, and direct calls against the live API
+rests on 229 database tests, typechecking, and direct calls against the live API
 — including as a real Tier 2 user (groups, DMs, friends, Match). A green suite is
 not proof on this project.
 

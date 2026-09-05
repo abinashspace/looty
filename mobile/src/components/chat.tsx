@@ -12,7 +12,7 @@
  * the Looted-you list. Friend DMs show the photo immediately.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
@@ -232,6 +232,7 @@ export function MessageList({
 export function Composer({
   onSend,
   onSendImage,
+  onTyping,
   allowImages = false,
   disabled = false,
   disabledReason,
@@ -239,6 +240,8 @@ export function Composer({
 }: {
   onSend: (text: string) => Promise<string | null>;
   onSendImage?: (uri: string, width?: number) => Promise<string | null>;
+  /** 1:1 only. Groups do not pass this — a thousand people typing is noise. */
+  onTyping?: (active: boolean) => void;
   allowImages?: boolean;
   disabled?: boolean;
   disabledReason?: string;
@@ -250,6 +253,41 @@ export function Composer({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const onTypingRef = useRef(onTyping);
+  onTypingRef.current = onTyping;
+  const typingOn = useRef(false);
+  const lastPulse = useRef(0);
+  const pulseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const pulse = useCallback((active: boolean) => {
+    const notify = onTypingRef.current;
+    if (!notify) return;
+    if (active) {
+      const now = Date.now();
+      if (!typingOn.current || now - lastPulse.current > 2000) {
+        typingOn.current = true;
+        lastPulse.current = now;
+        notify(true);
+      }
+      if (pulseTimer.current) clearTimeout(pulseTimer.current);
+      pulseTimer.current = setTimeout(() => pulse(true), 2000);
+    } else {
+      if (pulseTimer.current) clearTimeout(pulseTimer.current);
+      pulseTimer.current = null;
+      if (typingOn.current) {
+        typingOn.current = false;
+        notify(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => () => pulse(false), [pulse]);
+
+  function onChangeText(next: string) {
+    setText(next);
+    pulse(next.trim().length > 0);
+  }
+
   async function send() {
     const body = text.trim();
     if (!body || busy) return;
@@ -258,9 +296,11 @@ export function Composer({
     // Clear optimistically — nothing is more irritating than losing what you typed
     // to a network blip. Restored below if the send actually fails.
     setText('');
+    pulse(false);
     const err = await onSend(body);
     if (err) {
       setText(body);
+      pulse(true);
       setError(err);
     }
     setBusy(false);
@@ -321,7 +361,7 @@ export function Composer({
         ) : null}
         <TextInput
           value={text}
-          onChangeText={setText}
+          onChangeText={onChangeText}
           placeholder={placeholder}
           placeholderTextColor={c.textSecondary}
           multiline

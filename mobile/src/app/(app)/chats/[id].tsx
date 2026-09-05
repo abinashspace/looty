@@ -7,7 +7,7 @@
  */
 
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ChatShell, Composer, MessageList, type ChatMessage } from '@/components/chat';
@@ -36,6 +36,7 @@ export default function Chat() {
   const [thread, setThread] = useState<Thread | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [peerTyping, setPeerTyping] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -95,6 +96,37 @@ export default function Chat() {
     };
   }, [id, load]);
 
+  const typingHold = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const notePeerTyping = useCallback((on: boolean) => {
+    if (typingHold.current) clearTimeout(typingHold.current);
+    setPeerTyping(on);
+    if (on) {
+      typingHold.current = setTimeout(() => setPeerTyping(false), 4500);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!id) return;
+    const channel = supabase
+      .channel(`typing:${id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'thread_typing', filter: `thread_id=eq.${id}` },
+        (payload) => notePeerTyping(payload.eventType !== 'DELETE'),
+      )
+      .subscribe();
+    return () => {
+      if (typingHold.current) clearTimeout(typingHold.current);
+      supabase.removeChannel(channel);
+      void supabase.rpc('clear_typing', { p_thread: id });
+    };
+  }, [id, notePeerTyping]);
+
+  function pulseTyping(active: boolean) {
+    if (!id || thread?.ended_at) return;
+    void supabase.rpc(active ? 'set_typing' : 'clear_typing', { p_thread: id });
+  }
+
   function sendError(code?: string, message?: string) {
     return code === '42501'
       ? 'You cannot send messages in this chat any more.'
@@ -106,6 +138,7 @@ export default function Chat() {
       .from('messages')
       .insert({ thread_id: id, sender_id: session?.user.id, body });
     if (!error) {
+      if (id) void supabase.rpc('clear_typing', { p_thread: id });
       await load();
       return null;
     }
@@ -129,6 +162,7 @@ export default function Chat() {
         image_url: path,
       });
       if (error) return sendError(error.code, error.message);
+      void supabase.rpc('clear_typing', { p_thread: id });
       await load();
       return null;
     } catch (e) {
@@ -245,7 +279,9 @@ export default function Chat() {
           <Text style={[styles.title, { color: c.text }]} numberOfLines={1}>
             {thread?.other_display_name ?? thread?.other_username ?? 'Chat'}
           </Text>
-          {thread?.type === 'connection' ? (
+          {peerTyping ? (
+            <Text style={{ color: c.textSecondary, fontSize: 12 }}>typing…</Text>
+          ) : thread?.type === 'connection' ? (
             <Text style={{ color: c.textSecondary, fontSize: 12 }}>Connected</Text>
           ) : null}
         </View>
@@ -278,6 +314,7 @@ export default function Chat() {
       <Composer
         onSend={send}
         onSendImage={sendImage}
+        onTyping={ended ? undefined : pulseTyping}
         allowImages
         disabled={ended}
         disabledReason="This chat has ended."

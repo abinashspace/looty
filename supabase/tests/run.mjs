@@ -1473,6 +1473,79 @@ await check('an outsider cannot record a screenshot on someone else\'s thread', 
     `select count(*) c from messages where thread_id=$1 and kind='screenshot'`, [scThread])).c, 1);
 });
 
+console.log('\nTyping indicators (1:1 only)');
+const typA = await mkUser('typa');
+const typB = await mkUser('typb');
+const typC = await mkUser('typc');
+await asUser(typA, () =>
+  db.query(`insert into friendships (requester_id, addressee_id) values ($1,$2)`, [typA, typB]));
+await asUser(typB, () =>
+  db.query(`update friendships set status='accepted' where addressee_id=$1`, [typB]));
+const typThread = (await asUser(typA, () => one(`select open_dm_thread($1) id`, [typB]))).id;
+await check('a participant can pulse typing', async () => {
+  await asUser(typA, () => db.query(`select set_typing($1)`, [typThread]));
+  eq((await asUser(typB, () => one(`select peer_is_typing($1) x`, [typThread]))).x, true, 'peer sees it');
+  eq((await asUser(typA, () => one(`select peer_is_typing($1) x`, [typThread]))).x, false, 'self is not a peer');
+});
+await check('the typer cannot read their own row — Realtime is peer-only', async () => {
+  const n = await asUser(typA, async () =>
+    Number((await db.query(`select count(*) c from thread_typing where thread_id=$1`, [typThread])).rows[0].c));
+  eq(n, 0, 'own heartbeat visible to typer');
+});
+await check('the peer can read the heartbeat row', async () => {
+  const n = await asUser(typB, async () =>
+    Number((await db.query(`select count(*) c from thread_typing where thread_id=$1`, [typThread])).rows[0].c));
+  eq(n, 1);
+});
+await check('clearing drops the indicator', async () => {
+  await asUser(typA, () => db.query(`select clear_typing($1)`, [typThread]));
+  eq((await asUser(typB, () => one(`select peer_is_typing($1) x`, [typThread]))).x, false);
+});
+await check('a pulse older than 4 seconds is not typing', async () => {
+  await asUser(typA, () => db.query(`select set_typing($1)`, [typThread]));
+  await db.query(
+    `update thread_typing set updated_at = now() - interval '10 seconds'
+      where thread_id=$1 and user_id=$2`, [typThread, typA]);
+  eq((await asUser(typB, () => one(`select peer_is_typing($1) x`, [typThread]))).x, false);
+});
+await check('a stranger cannot pulse on someone else\'s thread', async () => {
+  await asUser(typC, async () => {
+    try {
+      await db.query(`select set_typing($1)`, [typThread]);
+      throw new Error('expected rejection (cannot_type) but it succeeded');
+    } catch (e) {
+      if (e.message.startsWith('expected rejection')) throw e;
+      if (!e.message.includes('cannot_type')) throw new Error(`wrong error: ${e.message}`);
+    }
+  });
+});
+await check('a stranger does not see the indicator and cannot read the row', async () => {
+  await asUser(typA, () => db.query(`select set_typing($1)`, [typThread]));
+  eq((await asUser(typC, () => one(`select peer_is_typing($1) x`, [typThread]))).x, false);
+  const n = await asUser(typC, async () =>
+    Number((await db.query(`select count(*) c from thread_typing where thread_id=$1`, [typThread])).rows[0].c));
+  eq(n, 0, 'stranger saw a typing row');
+});
+await check('clients cannot write the table directly', async () => {
+  const r = await one(`select count(*) c from information_schema.table_privileges
+    where table_name='thread_typing' and grantee in ('anon','authenticated')
+      and privilege_type in ('INSERT','UPDATE','DELETE')`);
+  eq(r.c, 0, 'write grants');
+});
+await check('unfriend stops further pulses', async () => {
+  await asUser(typA, () =>
+    db.query(`delete from friendships where requester_id=$1 and addressee_id=$2`, [typA, typB]));
+  await asUser(typA, async () => {
+    try {
+      await db.query(`select set_typing($1)`, [typThread]);
+      throw new Error('expected rejection (cannot_type) but it succeeded');
+    } catch (e) {
+      if (e.message.startsWith('expected rejection')) throw e;
+      if (!e.message.includes('cannot_type')) throw new Error(`wrong error: ${e.message}`);
+    }
+  });
+});
+
 console.log('\nDPDP export');
 await check('a signed-in user can export their own profile and login email', async () => {
   await db.query(`update profiles set college_email='private_u1@iitb.ac.in' where id=$1`, [u1.id]);
@@ -1540,7 +1613,8 @@ await check('the functions the app actually calls are still callable', async () 
                     'can_read_chat_image(text)', 'can_write_chat_image(text)',
                     'register_push_token(text)', 'unregister_push_token(text)',
                     'record_screenshot(uuid)', 'export_my_data()', 'my_blocks()',
-                    'mark_thread_read(uuid)']) {
+                    'mark_thread_read(uuid)', 'set_typing(uuid)', 'clear_typing(uuid)',
+                    'peer_is_typing(uuid)']) {
     const r = await one(`select has_function_privilege('authenticated', $1, 'execute') x`, [fn]);
     eq(r.x, true, fn);
   }

@@ -15,6 +15,26 @@
 
 ---
 
+## 2026-09-05 — Typing indicators in 1:1 chats
+
+DMs and Connected chats show "typing…" while the other person is composing.
+Groups do not — a thousand-person room making that signal is noise.
+
+`thread_typing` is a heartbeat, not presence. `set_typing` upserts; `clear_typing`
+drops your row on send, empty field, or leaving the screen; `peer_is_typing` is
+true for four seconds after the last pulse. Stale rows are swept on the next
+pulse. Writes are RPCs. SELECT is granted and RLS is peer-only, because Realtime
+`postgres_changes` never fires for a table the client cannot read (the reason
+`thread_reads` is polled and this is not).
+
+Unfriend / ended thread / a stranger all fail `set_typing` (`cannot_type`). Tests
+229, up from 220.
+
+**Why.** CONTEXT listed typing indicators as assumed yes and they were unbuilt.
+Laptop-only; does not need a second phone to ship, though walking it does.
+
+---
+
 ## 2026-09-05 — Migration 35 is live. Play listing re-read. Privacy published
 
 The 2026-09-04 reversal was sitting uncommitted when the last session stopped.

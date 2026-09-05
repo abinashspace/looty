@@ -88,7 +88,7 @@ export default function Chats() {
           <Notice>
             {isBanned
               ? 'Messaging is unavailable while your account is restricted.'
-              : 'Confirm your college email to message other students.'}
+              : 'Confirm your email address to message other students.'}
           </Notice>
         </View>
       </SafeAreaView>

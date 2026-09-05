@@ -3,10 +3,9 @@
 > Hosted at **https://abinashspace.github.io/looty/** (`docs/index.html` on
 > this repo). Do not paste dating language anywhere this text is reused.
 
-**Last updated: 1 September 2026.**
+**Last updated: 5 September 2026.**
 
-Looty is a friends app for verified college students in India. It is not a
-dating app.
+Looty is a friends app for college students in India. It is not a dating app.
 
 ## Who we are
 
@@ -18,7 +17,7 @@ Store listing.
 | Data | Why |
 |---|---|
 | Account email (Google or the address you sign up with) | Sign in |
-| College email, once you confirm it | Prove you are a student; also the identifier a permanent ban is anchored to (stored as a hash, not the raw address, in `banned_identities`) |
+| College email, once you confirm it | Adds the College Verified badge; also the strongest identifier a permanent ban is anchored to (stored as a hash, not the raw address, in `banned_identities`) |
 | Username, display name, profile photo, course length, college | Your profile and Looty Match |
 | Gender, if you set it | Optional Match filter (“only show me the same gender”) |
 | Messages you send (text; photos in 1:1 chats only) | Delivering chat |
@@ -41,9 +40,11 @@ abandoned path and are unused).
 
 ## Who can see what
 
-- **Tier 0 (unverified):** your own profile only. You can read group rooms.
-- **Tier 2 (college confirmed):** other verified students can see your username,
-  display name, photo and college. They cannot see your college email.
+- **Tier 0 (not confirmed):** your own profile only. You can read group rooms.
+- **Tier 1 (email confirmed):** other students can see your username, display
+  name, photo and college.
+- **Tier 2 (college confirmed):** the same, plus a College Verified badge. They
+  cannot see your college email.
 - **Chat:** people you are friends with, or Connected with, see messages in that
   thread. Group rooms are public to every Looty user (text only).
 - **Photos in Connected chats** are hidden until the other person taps. That is
@@ -55,9 +56,9 @@ abandoned path and are unused).
 - Your account and messages until you delete the account, or we close the
   service.
 - Group messages: 30-day rolling window.
-- A **permanent ban** keeps a hash of the college email after the account is
-  gone, so the same mailbox cannot sign up again. If that ban is lifted, the
-  hash is deleted.
+- A **permanent ban** keeps a hash of your sign-in email, and of your college
+  email if you confirmed one, after the account is gone, so the same mailbox
+  cannot sign up again. If that ban is lifted, those hashes are deleted.
 
 ## Your rights (DPDP)
 

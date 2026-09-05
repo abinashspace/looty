@@ -184,10 +184,10 @@ export default function Profile() {
       ) : tier < Tier.CollegeVerified ? (
         <>
           <Notice>
-            You are unverified, so messaging and Looty Match are locked. Confirm a
-            college email to unlock them.
+            Nothing is locked — this is a badge, not a gate. Confirm a college
+            email and people can see you are a verified student.
           </Notice>
-          <Button label="Confirm college email" onPress={() => router.push('/(auth)/verify')} />
+          <Button label="Get the College Verified badge" onPress={() => router.push('/(auth)/verify')} />
         </>
       ) : null}
 

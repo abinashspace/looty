@@ -108,8 +108,8 @@ export default function SignIn() {
     <Screen>
       <Title>{mode === 'signIn' ? 'Welcome back' : 'Create your account'}</Title>
       <Body>
-        Looty is for college students in India. You will confirm your college email
-        on the next step.
+        Looty is for college students in India. Set up your profile next — it takes
+        a minute, and that is the whole of it.
       </Body>
 
       <View style={{ height: 8 }} />

@@ -25,8 +25,8 @@
 <body>
   <main>
     <h1>Looty privacy policy</h1>
-    <p class="muted">Last updated: 1 September 2026.</p>
-    <p>Looty is a friends app for verified college students in India. It is not a dating app.</p>
+    <p class="muted">Last updated: 5 September 2026.</p>
+    <p>Looty is a friends app for college students in India. It is not a dating app.</p>
 
     <h2>Who we are</h2>
     <p>Looty is operated by the project owner. Contact: the email on the Play Store listing.</p>
@@ -38,7 +38,7 @@
       </thead>
       <tbody>
         <tr><td>Account email (Google or the address you sign up with)</td><td>Sign in</td></tr>
-        <tr><td>College email, once you confirm it</td><td>Prove you are a student; also the identifier a permanent ban is anchored to (stored as a hash, not the raw address)</td></tr>
+        <tr><td>College email, once you confirm it</td><td>Adds the College Verified badge; also the strongest identifier a permanent ban is anchored to (stored as a hash, not the raw address)</td></tr>
         <tr><td>Username, display name, profile photo, course length, college</td><td>Your profile and Looty Match</td></tr>
         <tr><td>Gender, if you set it</td><td>Optional Match filter (“only show me the same gender”)</td></tr>
         <tr><td>Messages you send (text; photos in 1:1 chats only)</td><td>Delivering chat</td></tr>
@@ -58,8 +58,9 @@
 
     <h2>Who can see what</h2>
     <ul>
-      <li><strong>Tier 0 (unverified):</strong> your own profile only. You can read group rooms.</li>
-      <li><strong>Tier 2 (college confirmed):</strong> other verified students can see your username, display name, photo and college. They cannot see your college email.</li>
+      <li><strong>Tier 0 (not confirmed):</strong> your own profile only. You can read group rooms.</li>
+      <li><strong>Tier 1 (email confirmed):</strong> other students can see your username, display name, photo and college.</li>
+      <li><strong>Tier 2 (college confirmed):</strong> the same, plus a College Verified badge. They cannot see your college email.</li>
       <li><strong>Chat:</strong> people you are friends with, or Connected with, see messages in that thread. Group rooms are public to every Looty user (text only).</li>
       <li><strong>Photos in Connected chats</strong> are hidden until the other person taps. That is a courtesy, not encryption — the file still sits on our storage for that thread.</li>
     </ul>
@@ -68,7 +69,7 @@
     <ul>
       <li>Your account and messages until you delete the account, or we close the service.</li>
       <li>Group messages: 30-day rolling window.</li>
-      <li>A <strong>permanent ban</strong> keeps a hash of the college email after the account is gone, so the same mailbox cannot sign up again. If that ban is lifted, the hash is deleted.</li>
+      <li>A <strong>permanent ban</strong> keeps a hash of your sign-in email, and of your college email if you confirmed one, after the account is gone, so the same mailbox cannot sign up again. If that ban is lifted, those hashes are deleted.</li>
     </ul>
 
     <h2>Your rights (DPDP)</h2>

@@ -9,16 +9,26 @@
 > also get a dated entry in [`LOG.md`](LOG.md), which is append-only and never
 > edited. CONTEXT = what is true now. LOG = how it got that way.
 >
-> Last updated: 2026-09-02
+> Last updated: 2026-09-05
 
 ---
 
 ## 1. What Looty is
 
-Looty is a **text-first social app for verified college students in India**. The
-promise is a peer-only space — no parents, teachers, relatives, or outsiders. That
-promise is the entire product, and every verification decision below exists to
-protect it.
+Looty is a **text-first social app for college students in India**. The promise is
+a peer space — a place that is for students and feels like it.
+
+**Read that as aspiration, not as an enforced property. It changed on 2026-09-04.**
+Until then the promise was literal: a college email domain was the gate, and
+anyone without one was locked out of everything but reading. That gate is gone. A
+confirmed sign-in address — a Gmail — now reaches Tier 1, and Tier 1 opens groups,
+DMs and Match. Nothing stops a parent, a teacher, or a stranger from signing up.
+
+What remains of the original promise is a **badge**: confirming a college address
+still reaches Tier 2 and shows College Verified. The peer-only space is now a
+social norm the badge supports, plus moderation, rather than a wall the database
+enforces. Every claim in this file that says otherwise has been rewritten; if you
+find one that was missed, it is a bug in the document. See LOG.md, 2026-09-04.
 
 **Looty is a friends app, not a dating app.** This is a deliberate position, not a
 technicality. It was originally specced with a Dating group category and a
@@ -68,7 +78,7 @@ live as Tier 2 on 2026-08-31.
 
 | Phase | Scope | Status |
 |---|---|---|
-| 0 | College domain list | **Started.** Live has `thangavelu.edu.in` (owner-confirmed student mailbox) plus probe domain `looty.test.invalid`. Every other college still missing |
+| 0 | College domain list | **No longer blocking.** Downgraded 2026-09-04 from launch gate to badge coverage — a missing domain now costs a badge, not access. Live has `thangavelu.edu.in` plus probe domain `looty.test.invalid` |
 | 1 | Auth, verification, trust tiers, profile | Schema, screens and Edge Function done. **Missing: Google Sign-In, real email delivery** |
 | 2 | Friends, DMs, block/report | Done — schema, tests, inbox, threads, search, requests. **Verified live as Tier 2** |
 | 3 | Groups | Done — schema, tests, room list and live chat. **Verified live as Tier 2** |
@@ -80,7 +90,7 @@ live as Tier 2 on 2026-08-31.
 ### What exists right now
 
 ```
-supabase/migrations/   34 migrations. Phase 1: colleges + domain allowlist,
+supabase/migrations/   35 migrations. Phase 1: colleges + domain allowlist,
                        profiles, verifications + bans + access gate, RLS +
                        column grants. Phase 2: blocks + friendships, threads +
                        messages, reports, Phase 2 RLS. Then: college email
@@ -98,10 +108,11 @@ supabase/migrations/   34 migrations. Phase 1: colleges + domain allowlist,
                        chat-images bucket, push_tokens, screenshot notices,
                        group-message 30-day purge, export_my_data,
                        connection-end closes thread, unfriend ends DM, my_blocks,
-                       thread_reads + inbox unread
+                       thread_reads + inbox unread, sign-in email grants Tier 1
 supabase/functions/    issue-college-code, delete-account (both deployed)
-supabase/tests/run.mjs 215 behaviour tests, run with `npm run test:db`
+supabase/tests/run.mjs 220 behaviour tests, run with `npm run test:db`
 supabase/seed.sql      sample colleges; domain list deliberately EMPTY
+                       (a missing domain now costs a badge, not access)
 mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/lib/tiers.ts     client mirror of the server tier gate — NOT security
   src/lib/session.tsx  auth session + profile + signup step resolution
@@ -112,7 +123,9 @@ mobile/                Expo app (SDK 57, RN 0.86), Android-only
   src/components/avatar.tsx  Photo or initials; Match card variant
   src/components/ui.tsx  Screen / Field / Button / Notice / Toggle — the whole kit
   src/components/chat.tsx  ChatShell + MessageList + Composer (groups and DMs)
-  src/app/(auth)/      sign-in, verify, college, profile-setup — all REAL
+  src/app/(auth)/      sign-in, profile-setup — the whole signup. verify and
+                       college still live here but are OFF the signup path;
+                       they are reached from You as an optional badge
   src/app/(app)/       groups/ (list, room), chats/ (inbox, thread, search,
                        requests), match, looted, profile — all REAL.
                        Chats tab badge = unread threads + incoming requests.
@@ -153,7 +166,7 @@ Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
 
 ### Verified so far
 
-`npm run test:db` passes 215/215. `npx tsc --noEmit` is clean. The UI has rendered
+`npm run test:db` passes 220/220. `npx tsc --noEmit` is clean. The UI has rendered
 on a real Android device (2026-08-31, again 2026-09-01 through profile, groups,
 and a Study send) and once in a browser (2026-08-30). Chat images and push-token
 RPCs were verified against the live API on 2026-09-01; the 1:1 image picker has
@@ -212,7 +225,9 @@ shipped open to `anon`.
 **Authenticated behaviour is now verified live too.** A real test account
 (`looty.devtest2@gmail.com`) confirms: the signup trigger creates the profile row,
 `full_name` is refused (`42501`), self-promotion to Tier 2 is refused, `current_tier()`
-returns 0, and a Tier 0 user sees only their own profile row.
+then returned 0, and a Tier 0 user sees only their own profile row. After migration
+35 that same confirmed Gmail is Tier 1; the remaining live Tier 0 is
+`looty.devtest1@gmail.com`, whose address was never confirmed.
 
 That last one was a **bug found by this test**: before migration 15, any Tier 0 user
 could `select * from profiles` and dump the whole student directory. See §7.
@@ -224,8 +239,12 @@ The `issue-college-code` function is deployed and working; without `RESEND_API_K
 it logs the code instead of sending it, and refuses to do that when
 `LOOTY_ENV=production`.
 
+**Neither is launch-blocking any more.** Since 2026-09-04 a confirmed sign-in
+address is enough for full access, so a user who never touches college email has
+a complete app. `RESEND_API_KEY` now only gates the College Verified badge.
+
 **A real mailbox domain is now on the allowlist** (`thangavelu.edu.in`), but
-codes still do not email — that needs `RESEND_API_KEY`. The rest of the path The rest of the path
+codes still do not email — that needs `RESEND_API_KEY`. The rest of the path
 **has** been verified live, using a test college (`Looty Test College`, domain
 `looty.test.invalid`, RFC 2606 so it can never resolve) and a code row inserted
 as postgres: `confirm_college_email` returned `ok`, `current_tier()` returned 2,
@@ -243,7 +262,7 @@ returned `42501` then succeeded, and `match_feed` showed the other test student.
 ### Live infrastructure
 
 **Supabase project `zsfjwlmeeodsiwruvine`**, region `ap-south-1` (Mumbai),
-Postgres 17.6, on the free plan. All 34 migrations are deployed, plus the
+Postgres 17.6, on the free plan. All 35 migrations are deployed, plus the
 `issue-college-code` and `delete-account` Edge Functions. The repo is linked
 via the Supabase CLI, so `npx supabase db push` applies new migrations directly —
 it authenticates with the stored access token and does not prompt for the database
@@ -334,14 +353,15 @@ decision recorded in LOG.md.
 
 ### 3.1 Profile
 
-- **Profile picture optional.** College email is the identity proof. A required
+- **Profile picture optional.** College email is the badge, not a gate. A required
   face fought anonymity and the friends-not-dating position (owner, 2026-09-01).
   Match cards and lists show a photo if someone added one; otherwise two
   initials from the display name (else username). The Looted-you paywall still
   uses `?` placeholders — those are not initials of real people.
 - **Display name** is entered by the user. With the ID path gone there is no
-  document to take a legal name from, so nothing verifies it — the college email is
-  what proves someone is a student, not their name. `profiles.full_name` is dormant
+  document to take a legal name from, so nothing verifies it. A college email, if
+  they add one, is what the College Verified badge rests on, not their name.
+  `profiles.full_name` is dormant
   along with the rest of the ID machinery (§4.5).
 - **Username**: unique, lowercase letters/numbers/underscore, 3–20 characters,
   changeable **once every 14 days** from You → Edit profile. Reserved blocklist:
@@ -360,7 +380,7 @@ decision recorded in LOG.md.
 Friend-request based, mutual accept required. Search by username. Text and images.
 No video. **No content moderation** — these are friend-gated, so the risk is low.
 
-### 3.3 Groups — read at Tier 0, post at Tier 1+
+### 3.3 Groups — read at Tier 0, post at Tier 1+ (i.e. anyone with a confirmed address)
 
 - Categories: **Study, Sports, Friends**. (Dating was removed.)
 - Global — open to all students, not college-specific. Open join, no approval.
@@ -457,9 +477,11 @@ misunderstood, so it is documented in full.
 
 ### 4.1 Why it is built this way
 
-**A college email domain is the only proof Looty accepts.** A domain is automatic,
-instant, free, and effectively unforgeable — a college controls its own domain, so
-nobody can fake `@iitb.ac.in`.
+**A college email domain is the only proof Looty accepts, and as of 2026-09-04 it
+proves a badge rather than buying access.** A domain is automatic, instant, free,
+and effectively unforgeable — a college controls its own domain, so nobody can
+fake `@iitb.ac.in`. That is still true and still worth having. What changed is
+what it is spent on.
 
 An ID card is the opposite on every axis. Indian college IDs have no standard
 format — every college designs its own, and there is no database to check them
@@ -471,45 +493,62 @@ manual queue for cards the automated check cannot read.
 **That path was built into the schema and then removed from the product.** Its
 columns remain, dormant — see §4.5.
 
-**The trade this makes, stated plainly: reach is now exactly the domain
-allowlist.** A student whose college issues no email can never pass Tier 0. Many
-Indian colleges — particularly state and affiliated ones — issue nothing. This is
-acceptable while launching at colleges that do issue email (IITs, NITs, BITS, large
-private universities), and it is the reason §7 lists the domain list as the single
-most important open task rather than a background one.
+**That trade was reversed on 2026-09-04.** It used to read: reach is exactly the
+domain allowlist, and a student whose college issues no email can never pass Tier
+0. Many Indian colleges — particularly state and affiliated ones — issue nothing,
+so that capped the product at a list nobody had yet measured. The gate was removed
+rather than the list being grown.
+
+**What was bought and what was paid.** Bought: reach stops depending on a list,
+and the largest open risk in §7 dissolves. Paid: the peer-only property is no
+longer enforced (§1), and the ban anchor got much weaker (§4.6). The second is the
+one that can actually hurt, and it was accepted knowingly, not overlooked.
 
 ### 4.2 The tiers
 
 | Tier | Reached by | Can do |
 |---|---|---|
-| **0 — Unverified** | Google Sign-In alone | **Read** groups, request a college. No posting, no DMs, no Match. |
-| **1 — Verified** | *Nothing. Dormant.* | — |
-| **2 — College Verified** | College email confirmed | Full access, **Verified** badge |
+| **0 — Unverified** | Signed in, address not confirmed — or a banned address | **Read** groups, request a college. No posting, no DMs, no Match. |
+| **1 — Student** | Any confirmed sign-in address | **Everything.** Groups, DMs, reports, Match |
+| **2 — College Verified** | College email confirmed | Same as Tier 1, plus the **College Verified** badge |
 
-**Tier 0 is not a waiting room.** For a student whose college has no email domain it
-is permanent. The app must say so honestly — "Looty isn't at your college yet" — and
-offer the request-a-college flow rather than leaving them staring at a verification
-screen they can never pass. Those requests are the growth roadmap: the colleges
-asked for most often are the ones worth chasing a domain for.
+**Tier 2 gates nothing, and never did.** Every RLS policy in every phase compares
+`current_tier() >= 1`; not one compares against 2. That is why migration 35 needed
+no policy changes at all — waking Tier 1 up opened everything at once. Tier 2's
+only jobs are the badge and the strong ban anchor.
 
-Tier 1 is kept in the numbering so capability minimums stay meaningful and
-reinstating the ID path is a decision rather than a migration.
+**Tier 0 is now rare and is no longer permanent.** It used to be the permanent
+home of any student without a college mailbox. Now it means one of two things: the
+sign-in address is not confirmed yet, or it is a banned address coming back. Both
+are states a person can leave.
+
+**The `Verified` name in code is now misleading.** `Tier.Verified` in
+`mobile/src/lib/tiers.ts` is the Gmail tier and verifies nothing about being a
+student; its user-facing label is "Student". Renaming the constant would touch
+every call site and was deliberately not done — read it as "Tier 1", not as a
+claim.
 
 ### 4.3 Signup flow
 
-1. **Google Sign-In** — any email accepted.
-2. Email domain checked against the allowlist.
-   **Match → Tier 2 immediately**, college auto-assigned, nothing else needed. This
-   is the ideal path: colleges on Google Workspace have addresses like
-   `name@college.ac.in` that *are* Google accounts, so it is one tap.
-   **No match → step 3.**
-3. **"Add your college email."** They enter a college address, a 6-digit code is
-   emailed to it, they enter the code → **Tier 2**.
-   Offer this before anything else — it is free, instant, and costs nothing to run.
-4. **No college email at all** → they stay Tier 0, read groups, and can **request
-   their college**.
-5. **Profile setup** (Tier 2 only): username, display name, course length.
-   Photo is optional.
+**Signup is two steps now: sign in, set up your profile.** That is the whole flow.
+
+1. **Google Sign-In** — any email accepted. A confirmed address is **Tier 1**, and
+   Tier 1 is full access.
+2. Email domain checked against the allowlist. **Match → Tier 2 immediately**,
+   college auto-assigned. Colleges on Google Workspace have addresses like
+   `name@college.ac.in` that *are* Google accounts, so this is one tap and free.
+   **No match → nothing happens.** They are Tier 1 and complete.
+3. **Profile setup** — username, display name, course length. Photo optional.
+   Required of everyone, at any tier.
+
+**Adding a college email is no longer a signup step.** It lives on the You screen
+as "Get the College Verified badge", and the verify screen is reached from there.
+It was removed from the signup path deliberately: a step that gates nothing but
+sits in the middle of onboarding reads as a wall, and every user who could not
+pass it would think they had failed at something.
+
+`SignupStep` in `session.tsx` therefore has no `verifyCollege` member any more,
+and `_layout.tsx` lost the special case that let Tier 0 users escape it.
 
 ### 4.4 Code handling
 
@@ -534,12 +573,38 @@ They are kept so that reinstating verification — if the domain list turns out 
 small — is a decision rather than a rebuild. Do not mistake their presence for a
 feature that exists.
 
+The domain list did turn out to be the problem, and the answer taken on 2026-09-04
+was to remove the gate rather than to reinstate this path. The columns stay
+dormant. If the open signup turns out to be the bigger mistake, this is still the
+way back.
+
 ### 4.6 Ban evasion — the college address is the anchor
 
 A Gmail is free and infinite, so hashing it is worthless as a ban anchor. **A
 college address is one per student and hard to get another of**, which makes it the
 right thing to anchor to. Permanent bans are enforced against a hashed college
 address in `banned_identities`, which survives account deletion — the point of it.
+
+**That reasoning is still correct, and since 2026-09-04 it is also no longer
+sufficient.** Most users now have no college address, so most permanent bans have
+no strong anchor. Migration 35 adds a second, deliberately weaker anchor:
+
+- `kind = 'college_email'` — the strong one. Unchanged, still owned by
+  `evaluate_reports()` / `unwind_bans_from_banned_reporter()` / `resolve_appeal()`.
+- `kind = 'account_email'` — the sign-in address. Written by an AFTER INSERT
+  trigger on `bans` when `ends_at is null`, released by an AFTER UPDATE trigger
+  when `lifted_at` is set. `handle_new_user()` checks it and leaves a returning
+  banned address at Tier 0.
+
+The triggers are additive on purpose: the strong path was not edited, so this
+change cannot have broken it.
+
+**Do not oversell the weak anchor.** It raises evasion from free to "make another
+Gmail", which is close to free. It is a speed bump, and the honest reading is that
+permanent bans are now soft for anyone without a college address. This was chosen
+knowingly over reinstating phone OTP (DLT registration, weeks) or a Play Integrity
+device signal (needs a native build, cannot be tested in Expo Go). Revisit it if
+evasion actually shows up — that is the trigger to act on, not a hunch.
 
 Phone OTP was considered for this job and **dropped**: it would have required DLT
 registration with Indian telecom operators, which takes weeks and business
@@ -599,7 +664,8 @@ college_requests    id, requester_id, college_name, city, domain, status
 profiles            id, username, display_name, dp_url, college_id,
                     college_email(private, unique — the ban anchor),
                     course_years, start_year, end_year, gender,
-                    trust_tier(0|2; 1 dormant), onboarding_complete(derived),
+                    trust_tier(0|1|2 — all three live since 2026-09-04),
+                    onboarding_complete(derived),
                     match_scope, match_same_gender_only,
                     full_name / phone_hash / phone_verified_at — dormant, §4.5
 reserved_usernames  username    -- looty, admin, support, official
@@ -661,16 +727,29 @@ because RLS filters rows and cannot hide a column.
 
 ## 7. Known risks and open items
 
-**The domain list is now the product's entire reach — this is the biggest open
-risk.** Every college missing from `college_domains` is a college where Looty
-cannot be used beyond read-only, permanently. Nothing else compensates now that the
-ID path is gone.
+**RESOLVED 2026-09-04, by removing the gate.** This section used to open: "the
+domain list is now the product's entire reach — this is the biggest open risk",
+because every missing college was a college where Looty was permanently read-only,
+and nobody had confirmed how many Indian colleges issue student mailboxes at all.
 
-Worse, the size of that reach is currently **unknown**, because nobody has yet
-confirmed how many Indian colleges actually issue student mailboxes. If the answer
-turns out to be "far fewer than expected", the honest options are to narrow the
-launch to colleges that do, or to reinstate the ID path from §4.5. Finding out is
-Phase 0 and it cannot be done from a keyboard.
+A confirmed sign-in address now reaches Tier 1 and Tier 1 is full access, so a
+missing domain costs a badge and nothing else. Phase 0 is still worth doing — the
+badge is worth having and the requests are still the growth signal — but it is no
+longer on the critical path.
+
+**The new biggest open risk is what replaced it: anyone can join.** §1 no longer
+claims a peer-only space as an enforced property, and the moderation engine is now
+the only thing standing between the product and outsiders, with a ban anchor (§4.6)
+that a new Gmail defeats. Nothing about this has been tested against real abuse,
+because nothing has shipped. Watch for it at launch rather than assuming it.
+
+**A second-order risk worth naming: Play Store content rating.** The DPDP and
+rating reasoning in §1 and §3.6 was written for a college-gated population.
+Stranger-matching and user images open to any signup is a different profile from
+the same features behind a college wall. Non-personalised ads app-wide still
+covers the DPDP targeting question, and nothing about the removal of the gate
+touches the no-romantic-framing rule — but the listing has not been re-read
+against the change, and it should be before submission.
 
 **A student can hold their college address after graduating.** Most Indian college
 mailboxes stay live for years, so a 2020 graduate can still verify today. The Alumni
@@ -700,11 +779,11 @@ Note this does not weaken reporting. Reports carry the surrounding messages
 server-side (`reports.context_type` / `context_id`), so a user does not need a
 screenshot to evidence harassment.
 
-**Phase 0 — college domain list. Now the single most important open task.** For
+**Phase 0 — college domain list. Coverage for the badge, not a launch gate.** For
 each college confirm: do students actually get mailboxes, the exact domain and
-subdomain, and roughly what share of students have one. A wrong entry is worse than
-a missing one — a missing domain merely locks a student out, a wrong one hands full
-access to whoever holds an address on it.
+subdomain, and roughly what share of students have one. A missing domain now costs
+only the College Verified badge. A wrong entry is worse — it hands that badge, and
+the strong ban anchor, to whoever holds an address on that domain.
 
 **The repo is public** (owner, 2026-09-01, so GitHub Pages can serve the privacy
 policy from `docs/`). Moderation thresholds in §3.5 are therefore readable.
@@ -725,11 +804,22 @@ students inviting others) was considered and declined.
 
 ## 8. Domain traps — things that look like bugs but are not
 
+- **Tier 2 gates nothing. Do not "fix" a policy to require it.** Every gate reads
+  `current_tier() >= 1`, on purpose. A policy that demands 2 would silently lock
+  out most of the userbase, and the tests would not catch it, because they mostly
+  run as college-confirmed users.
+- **`Tier.Verified` is Tier 1 and verifies nothing.** It is the Gmail tier. The
+  name is a leftover from the ID-card era; the label users see is "Student".
+- **A `create or replace` of `handle_new_user()` must carry forward everything the
+  previous definition did.** It creates the profile row, the notification_prefs
+  row, and now sets the initial tier. Migration 35 dropped the prefs insert on the
+  first attempt and four tests caught it — do not assume the next replace will be
+  as lucky.
 - **Never block by "is this email Google-hosted".** Many Indian colleges run their
   email on Google Workspace, so the address is `name@college.ac.in` but the mailbox
   is Gmail underneath. Domain checks must be **literal string matches** against the
   allowlist. There is no personal-provider blocklist any more — Gmail is explicitly
-  allowed at Tier 0.
+  allowed, and now reaches Tier 1.
 - **No wildcard domains.** A college may use `@xyz.ac.in` for staff and
   `@student.xyz.ac.in` for students. Store exact domains. A wildcard would let
   `@alumni.xyz.ac.in` through.

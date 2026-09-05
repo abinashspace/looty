@@ -46,7 +46,6 @@ const PROFILE_COLUMNS =
 /** Where a user is in signup. Drives which screen the root layout shows. */
 export type SignupStep =
   | 'signIn'
-  | 'verifyCollege'
   | 'profileSetup'
   | 'done';
 
@@ -64,19 +63,16 @@ type SessionState = {
 };
 
 /**
- * Signup order (CONTEXT.md §4.3): sign in → college email → profile.
+ * Signup order (CONTEXT.md §4.3): sign in → profile. That is the whole flow.
  *
- * Anyone who signs in with a recognised college domain is already Tier 2 and skips
- * the middle step entirely. Everyone else is offered "add your college email".
- *
- * Note that `verifyCollege` is NOT a wall. A student whose college issues no email
- * can never pass Tier 0, so trapping them on a verification screen would trap them
- * forever. They browse groups read-only and can request their college instead —
- * the root layout lets them through.
+ * College email used to sit in the middle and was mandatory, because it was the
+ * only route to full access. It no longer gates anything — a confirmed sign-in
+ * address is Tier 1 and Tier 1 opens everything — so it is not a signup step at
+ * all any more. It lives on the profile screen as an optional upgrade to the
+ * College Verified badge.
  */
 function resolveStep(session: Session | null, profile: Profile | null): SignupStep {
   if (!session) return 'signIn';
-  if ((profile?.trust_tier ?? Tier.Unverified) < Tier.CollegeVerified) return 'verifyCollege';
   if (!profile?.onboarding_complete) return 'profileSetup';
   return 'done';
 }

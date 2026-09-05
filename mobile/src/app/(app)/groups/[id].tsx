@@ -189,7 +189,7 @@ export default function GroupRoom() {
           isBanned
             ? 'You cannot post while your account is restricted.'
             : !can('postInGroups', tier, isBanned)
-              ? 'Confirm your college email to post here.'
+              ? 'Confirm your email address to post here.'
               : 'Join this group to post.'
         }
       />

@@ -17,22 +17,24 @@
 
 export const Tier = {
   /**
-   * Signed in with Google, no college email confirmed. Read groups, request a
-   * college. Nothing else.
-   *
-   * Not necessarily temporary: a student whose college issues no email stays here
-   * permanently. Treat it as a real destination, not a waiting room.
+   * No confirmed sign-in address, or one that is banned. Read groups, nothing
+   * else. Rare now that a confirmed address is all Tier 1 asks for — mostly it
+   * means a banned identity coming back for another go.
    */
   Unverified: 0,
   /**
-   * DORMANT — nothing currently reaches this tier.
+   * Confirmed sign-in address. FULL ACCESS — groups, DMs, reports, Match.
    *
-   * It was ID-card verification, which was removed from the product. The number is
-   * kept so capability minimums stay meaningful and so reinstating the ID path
-   * costs a decision rather than a migration.
+   * This tier sat dormant for the whole of the domain-allowlist era and was woken
+   * up in migration 35. Every server-side gate has always read `>= 1`, which is
+   * why turning the gate off needed no policy changes at all.
    */
   Verified: 1,
-  /** College email confirmed, by domain at sign-in or added later. Full access. */
+  /**
+   * College email confirmed. Same access as Tier 1 — it gates nothing. What it
+   * buys is the College Verified badge and a ban anchor worth the name, since a
+   * college address is one per student and a Gmail is free and infinite.
+   */
   CollegeVerified: 2,
 } as const;
 
@@ -86,7 +88,7 @@ export function blockedReason(
 
 export const TIER_LABEL: Record<TrustTier, string> = {
   [Tier.Unverified]: 'Unverified',
-  [Tier.Verified]: 'Verified',
+  [Tier.Verified]: 'Student',
   [Tier.CollegeVerified]: 'College Verified',
 };
 

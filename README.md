@@ -1,6 +1,6 @@
 # Looty
 
-A text-first social app for verified college students in India. Friends, not dating.
+A text-first social app for college students in India. Friends, not dating.
 
 **Start here → [CONTEXT.md](CONTEXT.md)** — what Looty is, every settled decision,
 the architecture, and what is still open. It is kept current.
@@ -9,18 +9,19 @@ For how things got this way, see [LOG.md](LOG.md).
 ## Status
 
 Pre-alpha, not shipped — but built. The Expo app has every screen working against a
-live Supabase project in Mumbai: sign-in, college-email verification, profile setup,
-group rooms, DMs, username search, friend requests, Looty Match, and the moderation
-appeal flow.
+live Supabase project in Mumbai: sign-in, optional college-email badge, profile
+setup, group rooms, DMs (text + images), username search, friend requests, Looty
+Match, and the moderation appeal flow. A confirmed sign-in address is full access;
+college email is the College Verified badge.
 
 It has been run on a real Android phone (USB + Expo Go 57). Correctness also
-rests on 197 database tests, typechecking, and direct calls against the live API
+rests on 220 database tests, typechecking, and direct calls against the live API
 — including as a real Tier 2 user (groups, DMs, friends, Match). A green suite is
 not proof on this project.
 
-Not done: Google Sign-In, real email delivery for verification codes, image
-messages, ads and billing (Phase 6), and the Play Store listing. Account deletion
-and notification prefs (Phase 7's in-app half) are built.
+Not done: Google Sign-In, real email delivery for college-badge codes, ads and
+billing (Phase 6), and Play Console. Account deletion and notification prefs
+(Phase 7's in-app half) are built. The Play listing is drafted in `legal/`.
 
 ## Running the database tests
 
@@ -59,12 +60,12 @@ anon key.
 
 ## Still needed from the project owner
 
-- **Verified college email domains** (`college_domains`). This is the biggest one:
-  with no ID-card path, a student whose college is not on the list can never get
-  past read-only. It is also the only part of the app that cannot be tested yet.
+- **College email domains** (`college_domains`) for the College Verified badge.
+  A missing domain no longer locks anyone out — it only costs the badge. Still
+  worth filling in; a wrong entry is worse than a missing one.
 - **A Google Cloud OAuth client** for Google Sign-In. Free.
-- **An email provider** (Resend, SES) so verification codes actually send. Free tier
-  is plenty. Without it the Edge Function logs the code instead.
+- **An email provider** (Resend, SES) so college-badge codes actually send. Free
+  tier is plenty. Without it the Edge Function logs the code instead.
 - **Google Play Console** ($25) and **AdMob**, for Phases 6 and 7. Play Console
   imposes a 12-tester, 14-day closed test before public release, so it is worth
   starting early.

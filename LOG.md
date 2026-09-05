@@ -15,6 +15,103 @@
 
 ---
 
+## 2026-09-05 — Migration 35 is live. Play listing re-read. Privacy published
+
+The 2026-09-04 reversal was sitting uncommitted when the last session stopped.
+This finishes that wrap.
+
+**Live.** `npx supabase db push --linked` applied migration 35. Backfill:
+4 confirmed Gmails went 0 → 1; 1 unconfirmed address stayed 0; the college-verified
+account stayed 2. New functions (`signin_tier`, `email_anchor_hash`, the
+confirmation and ban-anchor triggers) are `{postgres=X, service_role=X}` only.
+Anon calling `signin_tier` over PostgREST returns 401.
+
+**Play listing.** `legal/play-listing.md` no longer says a college mailbox is
+required to use the app. Short description dropped "verified". Content-rating
+notes now say open signup, 1:1 photos and stranger discovery are available to
+any confirmed address. Friends-not-dating is unchanged.
+
+**Privacy.** Intro on the hosted page, the markdown source, and the in-app
+screen dropped "verified college students". Last-updated is 5 September 2026.
+Pushing this commit republishes https://abinashspace.github.io/looty/ — that is
+the step LOG 2026-09-04 said the owner had to take on purpose.
+
+**Why.** Leaving the gate-removal on disk only meant live still locked Gmail
+accounts at Tier 0, and the listing still described a product that no longer
+exists.
+
+---
+
+## 2026-09-04 — A Gmail is enough. The domain allowlist becomes a badge
+
+**The biggest reversal on this project so far.** Until today a college email
+domain was the gate: no college mailbox, no posting, no DMs, no Match, ever.
+Today a confirmed sign-in address reaches **Tier 1**, and Tier 1 is full access.
+Confirming a college address still reaches Tier 2 and still shows **College
+Verified** — it is now a badge and a ban anchor, and it gates nothing.
+
+**Why.** §7 had called the domain list "the single most important open task" and
+"the biggest open risk" since 2026-08-28, on the grounds that reach was exactly
+the allowlist and nobody had confirmed how many Indian colleges issue student
+mailboxes at all. Owner's call: most do not, so stop paying for a gate that was
+capping the product at an unmeasured list.
+
+**The change was almost entirely a decision, not code.** Every RLS policy in every
+phase already read `current_tier() >= 1`, and nothing had ever reached Tier 1 —
+it was kept in the numbering in case the ID path came back. So waking it up opened
+groups, DMs, reports and Match at once, with **no policy changes**. Migration 35:
+
+- `signin_tier(email, confirmed_at)` — 1 when confirmed and not banned, else 0
+- `handle_new_user()` sets it at signup; a trigger on `auth.users` raises it if
+  confirmation ever lands later; existing Tier 0 rows backfilled
+- `banned_identities.kind` gains `'account_email'`
+
+**What it cost, and what was chosen knowingly.**
+
+*The peer-only promise is no longer an enforced property.* §1 was the load-bearing
+claim on this project — "no parents, teachers, relatives, or outsiders" — and it
+is now aspiration plus a badge plus moderation, not a wall. §1 has been rewritten
+to say so rather than left to read as though it were still true.
+
+*Permanent bans got soft.* §4.6 argued, correctly, that hashing a Gmail is
+worthless as an anchor because Gmails are free and infinite. That argument has not
+been repealed — it has been overridden. A second `account_email` anchor is written
+by triggers on `bans` (added on permanent, released on lift), which raises evasion
+from free to nearly free. Considered and rejected for now: phone OTP (DLT
+registration, weeks, and previously rejected for the same reason) and a Play
+Integrity device signal (needs a native build, untestable in Expo Go). **Revisit
+when evasion actually appears, not on a hunch.**
+
+**A regression this caused, caught by the tests.** The first version of migration
+35 did a `create or replace` of `handle_new_user()` carrying only the profile
+insert — silently dropping the `notification_prefs` insert that migration 23 had
+added to the same function. Four tests failed immediately. Now noted as a trap in
+§8.
+
+**Tests:** 220 passing, up from 215. Three tier tests were rewritten to the new
+model rather than deleted (a fresh user is Tier 1, not Tier 0; a flagged
+verification must neither grant nor claw back). Five new: unconfirmed stays at 0,
+late confirmation raises, a banned address returns at 0, a permanent ban writes
+the weak anchor, a lift releases it. `npx tsc --noEmit` clean.
+
+**Client:** `verifyCollege` is gone from `SignupStep` and from the root layout —
+signup is now sign in → profile setup, and the verify screen is reached from You
+as "Get the College Verified badge". Every "add your college email to unlock X"
+string is now false and was rewritten; `TierGate` in particular no longer points
+at the college flow to fix a lockout it cannot fix.
+
+**Privacy policy updated and NOT published.** `legal/privacy.md`, `docs/index.html`
+and the in-app screen said a permanent ban retains a hash of the college email;
+it now also retains the sign-in address, so all three were corrected. `docs/` is
+served by GitHub Pages, so **pushing this branch republishes the policy** — that
+is a deliberate step for the owner to take, not a side effect to discover.
+
+**Not done:** the Play listing in `legal/` has not been re-read against this
+change. Stranger-matching and user images open to any signup is a different
+content-rating profile from the same features behind a college wall. Flagged in §7.
+
+---
+
 ## 2026-09-02 — Tab badges for Chats and Looted you
 
 Unread lived only inside the Chats list. The tab itself stayed blank, so a

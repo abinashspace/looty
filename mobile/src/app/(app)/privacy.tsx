@@ -22,7 +22,7 @@ export default function Privacy() {
       </Pressable>
       <Title>Privacy</Title>
       <Body>
-        Looty is a friends app for verified college students in India. It is not a
+        Looty is a friends app for college students in India. It is not a
         dating app.
       </Body>
       <View style={styles.gap} />
@@ -34,10 +34,10 @@ export default function Privacy() {
       </Body>
       <View style={styles.gap} />
       <Body>
-        Confirming a college email is what proves you are a student. A permanent
-        restriction keeps a hash of that address after you delete the account, so
-        the same mailbox cannot return. If the restriction is lifted, the hash
-        goes too.
+        Confirming a college email adds the College Verified badge. A permanent
+        restriction keeps a hash of your sign-in address — and of your college
+        address if you confirmed one — after you delete the account, so the same
+        mailbox cannot return. If the restriction is lifted, those hashes go too.
       </Body>
       <View style={styles.gap} />
       <Body>

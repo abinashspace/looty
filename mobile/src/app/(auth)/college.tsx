@@ -47,8 +47,8 @@ export default function College() {
       <Screen>
         <Title>Request sent</Title>
         <Body>
-          We will look into {name.trim()}. Until it is added you can read the groups,
-          but messaging and Looty Match stay locked.
+          We will look into {name.trim()}. Nothing is locked in the meantime —
+          adding it just means students there can get the College Verified badge.
         </Body>
         <Button label="Browse groups" onPress={() => router.replace('/(app)/groups')} />
       </Screen>
@@ -60,7 +60,7 @@ export default function College() {
       <Title>Request your college</Title>
       <Body>
         Tell us which college to add. The email domain is the useful part — it is
-        what lets us verify students there.
+        what lets students there pick up the College Verified badge.
       </Body>
 
       <View style={{ height: 8 }} />

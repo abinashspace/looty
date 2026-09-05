@@ -26,6 +26,10 @@ await db.exec(`
   create table auth.users (
     id uuid primary key default gen_random_uuid(),
     email text, phone text,
+    -- Supabase stamps this at signup while email confirmation is off, which is
+    -- how the live project is configured. Tests that want an unconfirmed
+    -- account pass an explicit null.
+    email_confirmed_at timestamptz default now(),
     created_at timestamptz not null default now()
   );
   create or replace function auth.uid() returns uuid
@@ -104,8 +108,28 @@ await check('wildcard domain rejected by shape check', () =>
 console.log('\nProfile auto-creation and tiers');
 await check('profile auto-created on signup', async () =>
   eq((await one(`select count(*) c from profiles where id=$1`, [u1.id])).c, 1));
-await check('new user starts at Tier 0', async () =>
-  eq((await one(`select trust_tier t from profiles where id=$1`, [u1.id])).t, 0));
+await check('a confirmed sign-in address starts at Tier 1', async () =>
+  eq((await one(`select trust_tier t from profiles where id=$1`, [u1.id])).t, 1));
+await check('an unconfirmed address stays at Tier 0', async () => {
+  const { rows: [u] } = await db.query(
+    `insert into auth.users (email, email_confirmed_at) values ('unconf@gmail.com', null) returning id`);
+  eq((await one(`select trust_tier t from profiles where id=$1`, [u.id])).t, 0);
+});
+await check('confirming later raises the tier', async () => {
+  const { rows: [u] } = await db.query(
+    `insert into auth.users (email, email_confirmed_at) values ('later@gmail.com', null) returning id`);
+  await db.query(`update auth.users set email_confirmed_at = now() where id=$1`, [u.id]);
+  eq((await one(`select trust_tier t from profiles where id=$1`, [u.id])).t, 1);
+});
+await check('a banned sign-in address comes back at Tier 0', async () => {
+  await db.query(
+    `insert into banned_identities (hash, kind)
+     values (email_anchor_hash('evader@gmail.com'), 'account_email')`);
+  const { rows: [u] } = await db.query(
+    `insert into auth.users (email) values ('Evader@gmail.com') returning id`);
+  eq((await one(`select trust_tier t from profiles where id=$1`, [u.id])).t, 0);
+  await db.query(`delete from banned_identities where kind='account_email'`);
+});
 
 console.log('\nUsername rules');
 await check('valid username accepted', async () =>
@@ -126,12 +150,14 @@ await check('change allowed once 14 days have passed', async () => {
 });
 
 console.log('\nVerification promotes tier (service-role path only)');
-await check('flagged verification grants nothing', async () => {
+await check('flagged verification grants nothing beyond the sign-in tier', async () => {
   const { rows: [v] } = await db.query(
     `insert into verifications (user_id, method, status, claimed_college_id, face_match_score)
      values ($1,'id_card','flagged',$2,0.41) returning id`, [u1.id, college.id]);
   await db.query(`select apply_verification($1)`, [v.id]);
-  eq((await one(`select trust_tier t from profiles where id=$1`, [u1.id])).t, 0);
+  // Tier 1 is what the confirmed address already earned; a flagged verification
+  // must neither add to it nor claw it back.
+  eq((await one(`select trust_tier t from profiles where id=$1`, [u1.id])).t, 1);
 });
 await check('passed id_card → Tier 1 + college + name from OCR', async () => {
   const { rows: [v] } = await db.query(
@@ -531,8 +557,8 @@ const confirm = (uid, code) =>
     (await db.query(`select confirm_college_email($1) s`, [code])).rows[0].s);
 
 console.log('\nCollege email verification');
-await check('new Google signup starts at Tier 0', async () =>
-  eq((await one(`select trust_tier t from profiles where id=$1`, [edId])).t, 0));
+await check('new Google signup starts at Tier 1, not Tier 2', async () =>
+  eq((await one(`select trust_tier t from profiles where id=$1`, [edId])).t, 1));
 await check('wrong code is refused and the attempt actually persists', async () => {
   await issueCode(edId, '123456');
   eq(await confirm(edId, '999999'), 'invalid_code');
@@ -995,6 +1021,25 @@ await check('the third ban is permanent and anchors the college address', async 
   eq((await one(
     `select count(*) c from banned_identities
      where hash = encode(sha256(convert_to('vic1@iitb.ac.in','UTF8')),'hex')`)).c, 1, 'identity anchor');
+});
+await check('a permanent ban also anchors the weak sign-in address', async () => {
+  // Weak by design: the user can make another Gmail. It raises the cost of
+  // evasion from nothing to something, and nothing more. See migration 35.
+  const { email } = await one(
+    `select u.email from auth.users u where u.id=$1`, [victim1]);
+  eq((await one(
+    `select count(*) c from banned_identities
+     where kind='account_email' and hash = email_anchor_hash($1)`, [email])).c, 1);
+});
+await check('lifting the ban releases the sign-in anchor', async () => {
+  const { email } = await one(`select u.email from auth.users u where u.id=$1`, [victim1]);
+  await db.query(
+    `update bans set lifted_at=now(), lift_reason='test' where user_id=$1 and lifted_at is null`,
+    [victim1]);
+  eq((await one(
+    `select count(*) c from banned_identities
+     where kind='account_email' and hash = email_anchor_hash($1)`, [email])).c, 0,
+    'a lifted ban must not keep locking the address out');
 });
 
 console.log('\nModeration — brigades unwind themselves');

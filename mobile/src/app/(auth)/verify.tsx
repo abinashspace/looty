@@ -1,13 +1,17 @@
 /**
- * College email verification — the only route to full access.
+ * College email verification — the College Verified badge.
+ *
+ * This used to be the only route to full access and a mandatory signup step.
+ * Since migration 35 it gates nothing: a confirmed sign-in address is Tier 1 and
+ * Tier 1 opens groups, DMs and Match. What confirming a college address buys is
+ * the badge, and a ban anchor that is actually hard to get another of.
+ *
+ * So it is reached from the profile screen, not from signup, and every word on
+ * it has to stop implying that anything is locked — it is not.
  *
  * Two states on one screen: ask for the address, then ask for the code. Kept
  * together because they are one thought, and splitting them across routes makes
  * "wrong address, go back" needlessly awkward.
- *
- * This screen must never be a wall. A student whose college issues no email can
- * never pass it, so the way out — browse read-only, request your college — is
- * always visible rather than hidden behind a failure.
  */
 
 import { useRouter } from 'expo-router';
@@ -20,7 +24,7 @@ import { supabase } from '@/lib/supabase';
 
 const REQUEST_ERRORS: Record<string, string> = {
   unknown_college_domain:
-    "We don't recognise that college yet. You can request it below — meanwhile you can still read the groups.",
+    "We don't recognise that college yet. You can request it below — your access is unaffected either way.",
   email_already_claimed: 'That address is already linked to another Looty account.',
   rate_limited: 'Too many codes requested. Try again in an hour.',
   invalid_email: 'That does not look like an email address.',
@@ -37,7 +41,7 @@ const CONFIRM_ERRORS: Record<string, string> = {
 };
 
 export default function Verify() {
-  const { refresh, signOut } = useSession();
+  const { refresh } = useSession();
   const router = useRouter();
 
   const [step, setStep] = useState<'email' | 'code'>('email');
@@ -80,8 +84,10 @@ export default function Verify() {
     if (err) {
       setError('Something went wrong. Try again.');
     } else if (data === 'ok') {
-      // Tier just became 2; the session listener routes onward from here.
+      // Tier just became 2. Nothing unlocks — the badge appears — so send them
+      // back where they came from rather than through any signup routing.
       await refresh();
+      router.back();
     } else {
       setError(CONFIRM_ERRORS[String(data)] ?? 'That did not work. Try again.');
     }
@@ -94,8 +100,9 @@ export default function Verify() {
         <>
           <Title>Confirm your college</Title>
           <Body>
-            Enter your college email address. We will send a 6-digit code to check
-            it is yours. This is what unlocks messaging and Looty Match.
+            Enter your college email address and we will send a 6-digit code to
+            check it is yours. This adds the College Verified badge to your
+            profile. Nothing is locked without it.
           </Body>
 
           <View style={{ height: 8 }} />
@@ -121,14 +128,13 @@ export default function Verify() {
           />
 
           <Notice>
-            No college email? You can still read the groups. Ask us to add your
-            college and we will let you know when it works.
+            No college email? Nothing changes — you already have full access. The
+            badge is the only difference.
           </Notice>
 
           <View style={{ alignItems: 'center', gap: 14, paddingTop: 4 }}>
             <LinkButton label="Request my college" onPress={() => router.push('/(auth)/college')} />
-            <LinkButton label="Browse groups for now" onPress={() => router.replace('/(app)/groups')} />
-            <LinkButton label="Sign out" onPress={signOut} />
+            <LinkButton label="Not now" onPress={() => router.back()} />
           </View>
         </>
       ) : (

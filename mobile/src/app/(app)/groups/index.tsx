@@ -103,7 +103,7 @@ export default function Groups() {
 
         {!canPost ? (
           <Notice>
-            You can read every group. Confirm your college email to join in.
+            You can read every group. Confirm your email address to join in.
           </Notice>
         ) : null}
 

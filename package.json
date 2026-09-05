@@ -2,7 +2,7 @@
   "name": "looty",
   "version": "0.0.1",
   "private": true,
-  "description": "Chat-first social app for verified college students in India",
+  "description": "Chat-first social app for college students in India",
   "type": "module",
   "scripts": {
     "test:db": "node supabase/tests/run.mjs"

@@ -77,8 +77,15 @@ accounts through mutual loot to Connected, `FLAG_SECURE` set inside a Connected
 chat on 12 and cleared on leaving, capture allowed on 15, and typing indicators.
 Two defects turned up and were fixed in migration 37 — see LOG.md, 2026-09-05.
 **The Android 14+ screenshot notice is the exception: it fired once in six tries
-and is an open bug (§7).** **1:1 photos are the one flow still never walked on a
-phone.**
+and is an open bug (§7).**
+
+**On 2026-09-06 the first native build closed the last gap.** 1:1 photos were
+walked end to end between two accounts on two phones: picker, upload, correct
+`userId/threadId/uuid.jpg` path, `Photo · tap to view` on the receiver, and the
+image only after the tap. That run also found and fixed a bug that made photo
+sending impossible in any native build — see LOG.md, 2026-09-06. **Every screen and
+flow has now been walked on a device except the Android 14+ screenshot notice,
+which is broken.**
 
 `expo-notifications` must not be imported at module load in
 Expo Go (SDK 53 throws); `registerPushToken` lazy-requires it only in a native
@@ -183,8 +190,8 @@ Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
 `npm run test:db` passes 231/231. `npx tsc --noEmit` is clean. The UI has rendered
 on a real Android device (2026-08-31, again 2026-09-01 through profile, groups,
 and a Study send) and once in a browser (2026-08-30). Chat images and push-token
-RPCs were verified against the live API on 2026-09-01; the 1:1 image picker has
-not been tapped on a device.
+RPCs were verified against the live API on 2026-09-01. The 1:1 image picker was
+finally tapped on 2026-09-06, in the native build — see below.
 
 **Two-phone walkthrough, 2026-09-05.** Realme (Android 15) and Samsung SM-F415F
 (Android 12), both on USB. Confirmed on device: a plain confirmed signup reaches

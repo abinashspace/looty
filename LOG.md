@@ -15,6 +15,33 @@
 
 ---
 
+## 2026-09-06 — 1:1 photos walked end to end. The device checklist is finally empty
+
+The `crypto` fix was rebuilt and installed on both phones, and the whole photo path
+was walked between `@ameesha` (Samsung) and `@priya` (Realme) in their Connected
+thread. Every step verified rather than assumed:
+
+- **Upload succeeds.** No more `Property 'crypto' doesn't exist`.
+- **The stored path is right** — `userId/threadId/uuid.jpg`, with the threadId
+  matching the actual thread, which is what the storage RLS keys on.
+- **The object is private.** An anonymous request for it returns
+  `Bucket not found` — the bucket is not even enumerable without a session.
+- **The receiver sees `Photo · tap to view`,** not the image, and the file is not
+  fetched until tapped. This is the behaviour the Connected-chat design rests on
+  and it had never once been observed working.
+- **Tapping reveals it.** The image renders.
+- **The inbox preview reads "Photo"** rather than an empty row.
+
+**Every screen and flow in the app has now been walked on a real device**, with one
+exception: the Android 14+ screenshot notice, which is broken and tracked in §7.
+
+Worth noting what it took. This flow was written weeks ago, passed typecheck, and
+was covered by database tests, and it was completely non-functional in any real
+build. It needed a native build, two phones, two accounts, and a Connected thread
+to find out.
+
+---
+
 ## 2026-09-06 — Photo sending was dead in the native build: `crypto` does not exist
 
 **1:1 photo send, the last unwalked flow, was broken.** Walked it for the first

@@ -10,7 +10,7 @@
  */
 
 import * as ImagePicker from 'expo-image-picker';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar } from '@/components/avatar';
@@ -97,6 +97,24 @@ export default function ProfileSetup() {
   const [gender, setGender] = useState<string | null>(profile?.gender ?? null);
   const [dob, setDob] = useState(() => fromIso(profile?.date_of_birth ?? null));
   const [photo, setPhoto] = useState<string | null>(null);
+  // The profile arrives after first render, so the useState initialisers above
+  // see null and fall back to blank. Hydrate once it lands — otherwise the
+  // username field stays empty, which reads as a *change* to the rules trigger
+  // and gets the whole save rejected.
+  const hydrated = useRef(false);
+  useEffect(() => {
+    if (hydrated.current || !profile) return;
+    hydrated.current = true;
+    if (profile.username) setUsername(profile.username);
+    if (profile.display_name) setDisplayName(profile.display_name);
+    if (profile.course_years != null) {
+      const i = COURSES.findIndex((c) => c.years === profile.course_years);
+      if (i >= 0) setCourseIdx(i);
+    }
+    if (profile.gender) setGender(profile.gender);
+    if (profile.date_of_birth) setDob(fromIso(profile.date_of_birth));
+  }, [profile]);
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -160,11 +178,13 @@ export default function ProfileSetup() {
       const { error: dbErr } = await supabase
         .from('profiles')
         .update({
-          // Only send the username when it actually changed. The rules trigger
-          // refuses a *change* within 14 days of the last one, and resending the
-          // same value counts as a change — which is exactly what stranded every
-          // existing account on this screen after migration 39.
-          ...(username === profile?.username ? {} : { username }),
+          // Send the username only when it is both present and genuinely
+          // different. The rules trigger refuses a *change* within 14 days of the
+          // last one, so an empty or unchanged value must never be sent — that is
+          // what stranded every existing account here after migration 39. Belt
+          // and braces: even if the form failed to hydrate, this cannot resend a
+          // blank username and get the whole save rejected.
+          ...(!username.trim() || username === profile?.username ? {} : { username }),
           display_name: displayName.trim(),
           course_years: COURSES[courseIdx].years,
           start_year: new Date().getFullYear(),

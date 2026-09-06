@@ -21,6 +21,13 @@ import { downscaleProfilePhoto, uploadProfilePhoto } from '@/lib/profile-photo';
 import { useSession } from '@/lib/session';
 import { supabase } from '@/lib/supabase';
 
+const SAVE_ERRORS: Record<string, string> = {
+  username_change_too_soon:
+    'You changed your username in the last 14 days, so it is locked for now. Put your old one back to carry on.',
+  username_reserved: 'That username is taken.',
+  under_18: 'You must be 18 or over to use Looty.',
+};
+
 const COURSES = [
   { label: 'B.Tech / B.E.', years: 4 },
   { label: 'B.Sc / B.Com / B.A.', years: 3 },
@@ -28,6 +35,13 @@ const COURSES = [
   { label: 'MBBS', years: 5 },
   { label: 'Other', years: 3 },
 ];
+
+/** YYYY-MM-DD from the database back into the DD/MM/YYYY the field shows. */
+function fromIso(iso: string | null): string {
+  if (!iso) return '';
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
+}
 
 /** Digits only, punctuated as the user types: 01/02/2003. */
 function formatDob(raw: string): string {
@@ -68,14 +82,20 @@ function iso(d: Date): string {
 const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
 
 export default function ProfileSetup() {
-  const { session, refresh } = useSession();
+  const { session, profile, refresh } = useSession();
   const c = useTheme();
 
-  const [username, setUsername] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [courseIdx, setCourseIdx] = useState<number | null>(null);
-  const [gender, setGender] = useState<string | null>(null);
-  const [dob, setDob] = useState('');
+  // Prefilled: migration 39 sends every existing account back through this
+  // screen, so it is no longer a first-run-only form.
+  const [username, setUsername] = useState(profile?.username ?? '');
+  const [displayName, setDisplayName] = useState(profile?.display_name ?? '');
+  const [courseIdx, setCourseIdx] = useState<number | null>(() => {
+    const y = profile?.course_years;
+    const i = y == null ? -1 : COURSES.findIndex((c) => c.years === y);
+    return i >= 0 ? i : null;
+  });
+  const [gender, setGender] = useState<string | null>(profile?.gender ?? null);
+  const [dob, setDob] = useState(() => fromIso(profile?.date_of_birth ?? null));
   const [photo, setPhoto] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -140,7 +160,11 @@ export default function ProfileSetup() {
       const { error: dbErr } = await supabase
         .from('profiles')
         .update({
-          username,
+          // Only send the username when it actually changed. The rules trigger
+          // refuses a *change* within 14 days of the last one, and resending the
+          // same value counts as a change — which is exactly what stranded every
+          // existing account on this screen after migration 39.
+          ...(username === profile?.username ? {} : { username }),
           display_name: displayName.trim(),
           course_years: COURSES[courseIdx].years,
           start_year: new Date().getFullYear(),
@@ -154,8 +178,10 @@ export default function ProfileSetup() {
       await refresh();
     } catch (e) {
       // Surface the database's own wording — it knows things this screen does not,
-      // like whether a username was taken a second ago.
-      setError(e instanceof Error ? e.message : 'Could not save your profile.');
+      // like whether a username was taken a second ago. A few codes are opaque
+      // enough to be worth translating.
+      const raw = e instanceof Error ? e.message : '';
+      setError(SAVE_ERRORS[raw] ?? raw ?? 'Could not save your profile.');
     } finally {
       setBusy(false);
     }

@@ -15,6 +15,50 @@
 
 ---
 
+## 2026-09-06 — First EAS build. The screenshot notice is broken, not an Expo Go artifact
+
+**First native build of this project.** EAS preview profile, APK, `app.looty.android`
+0.1.0 build 1, from commit `38e3f2d`. Two runs were needed: the first opened on the
+"Supabase not configured" screen, because `mobile/.env` is gitignored and never
+reaches the cloud builder. Fixed by storing `EXPO_PUBLIC_SUPABASE_URL` and
+`EXPO_PUBLIC_SUPABASE_ANON_KEY` as EAS environment variables and pointing each
+build profile at its environment. They are deliberately **not** in `eas.json` —
+this repo is public — and deliberately **plaintext** rather than secret, because
+`EXPO_PUBLIC_` values are inlined into the bundle and ship in the APK regardless.
+
+**The violet palette and the eyes logo are on a real device for the first time.**
+Sign-in renders in light: lavender ground, white inputs, the logo violet on the
+link.
+
+**The screenshot notice does not work, and Expo Go was not the reason.**
+Yesterday it fired once in six tries in Expo Go, and the working theory was that
+Expo Go's Activity lifecycle broke `registerScreenCaptureCallback`. The native
+build settles it: **0 out of 4**, cold start included. Across both days, one
+success in ten.
+
+Ruled out by test, not by argument: wrong screen (UI dumps), the one-minute dedup
+(attempts minutes to hours apart), a stale app (cold start fails), Expo Go (single
+`MainActivity` now, still fails), and the permission — the APK declares
+`DETECT_SCREEN_CAPTURE` and it reads `granted=true`. The screenshots really were
+taken; `/sdcard/Pictures/Screenshots/` has them with matching timestamps.
+
+**What has not been ruled out, and it is the obvious next suspect: the device.**
+Every 14+ attempt has been on one phone, the Realme RMX3771 running ColorOS. OEM
+skins often capture screenshots through their own path instead of the one that
+dispatches AOSP's `Activity.ScreenCaptureCallback`. The Samsung is Android 12 and
+only exercises `FLAG_SECURE`, so it contributes nothing here. **Test on a Pixel or
+a Samsung on 14+ before calling the feature universally broken.**
+
+**Worth fixing whatever the cause.** `record_screenshot` is called as
+`void supabase.rpc(...)` with no error handling, so every one of these failures was
+silent — the user believes the other person was told. The same fire-and-forget
+shape is used for typing. Nothing in the UI should imply screenshots are reliably
+detected.
+
+The `FLAG_SECURE` half below Android 14 is unaffected and remains solid.
+
+---
+
 ## 2026-09-05 — Correction: the Android 14+ screenshot notice is not reliable
 
 **An earlier entry today said the screenshot notice was walked and working on both

@@ -810,19 +810,33 @@ DMs are not covered. `anon` cannot call the RPC (42501, live).
 nothing, and the flag **clears on leaving**, so the per-Activity trap below is
 handled. Repeatable and deterministic.
 
-**14+ — unreliable, and this is an open bug.** On Android 15 the notice fired
-**once in six attempts** on 2026-09-05, all in Expo Go, all with the thread open
-and focused. When it fires the whole chain is correct: both sides see the line,
-delivered live over Realtime. When it does not fire, nothing is written — the RPC
-is never reached, and `void supabase.rpc(...)` swallows any error, so a user would
-never know. Do not describe this feature as working until it has been re-tested in
-a native/EAS build.
+**14+ — BROKEN. Confirmed in a native build, not an Expo Go artifact.** Across
+2026-09-05/06 the notice fired **once in ten attempts**: 1/6 in Expo Go and
+**0/4 in the EAS preview build**, every attempt with the Connected thread open and
+focused. When it fires the whole chain is correct — both sides see the line, live
+over Realtime. When it does not, nothing is written at all, and because the client
+does `void supabase.rpc(...)` with no error handling, **the failure is completely
+silent**. A user would believe the other person was told when they were not.
 
-The suspect is `expo-screen-capture`'s `registerCallback()`, which guards on an
-`isRegistered` flag and never re-registers, while
-`registerScreenCaptureCallback` is bound to an Activity instance. Expo Go's
-Activity lifecycle is not a standalone app's, so this may be an Expo Go artifact —
-unproven either way. A fresh launch does not make it fire; that was tested.
+Ruled out by testing, in this order: being on the wrong screen (UI dumps confirm
+the thread was open); the one-minute dedup (attempts were minutes to hours apart);
+a stale app (cold start fails too); Expo Go's Activity lifecycle (the native build
+has a single `MainActivity` and still fails); and the permission — the built APK
+declares `android.permission.DETECT_SCREEN_CAPTURE` and it shows `granted=true`.
+Screenshots were confirmed genuinely taken by listing
+`/sdcard/Pictures/Screenshots/` and matching timestamps.
+
+**What is still unknown, and it matters: only one device has been tested.** The
+Realme RMX3771 runs ColorOS, and OEM skins routinely implement screenshots through
+their own path rather than the one that dispatches AOSP's
+`Activity.ScreenCaptureCallback`. The Samsung is Android 12, so it exercises
+`FLAG_SECURE` and says nothing about this. **Before concluding the feature is
+universally broken, test on any other Android 14+ device** — a Pixel or a Samsung
+on 14+ would settle it.
+
+Two things to fix regardless of the cause: the RPC should surface its failures
+instead of being fire-and-forget, and no UI copy should imply that screenshots are
+reliably detected.
 
 Three implementation traps to respect when building this:
 

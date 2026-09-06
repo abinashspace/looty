@@ -21,10 +21,12 @@ export default function AppLayout() {
         tabBarStyle: { backgroundColor: colors.background },
       }}>
       <Tabs.Screen
-        name="groups"
+        name="looted"
         options={{
-          title: 'Groups',
-          tabBarIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} />,
+          title: 'Looted you',
+          tabBarBadge: badges.looted,
+          tabBarBadgeStyle: badgeStyle,
+          tabBarIcon: ({ color, size }) => <Ionicons name="flame" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -35,21 +37,19 @@ export default function AppLayout() {
         }}
       />
       <Tabs.Screen
-        name="looted"
-        options={{
-          title: 'Looted you',
-          tabBarBadge: badges.looted,
-          tabBarBadgeStyle: badgeStyle,
-          tabBarIcon: ({ color, size }) => <Ionicons name="flame" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="chats"
         options={{
           title: 'Chats',
           tabBarBadge: badges.chats,
           tabBarBadgeStyle: badgeStyle,
           tabBarIcon: ({ color, size }) => <Ionicons name="chatbubbles" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="groups"
+        options={{
+          title: 'Groups',
+          tabBarIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} />,
         }}
       />
       <Tabs.Screen

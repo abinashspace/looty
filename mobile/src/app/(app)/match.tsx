@@ -28,6 +28,7 @@ import { Notice } from '@/components/ui';
 import { TierGate } from '@/components/tier-gate';
 import { useTheme } from '@/hooks/use-theme';
 import { useSession } from '@/lib/session';
+import { countDecisionForAd } from '@/lib/ads';
 import { supabase } from '@/lib/supabase';
 
 type Candidate = {
@@ -36,8 +37,6 @@ type Candidate = {
   display_name: string | null;
   dp_url: string | null;
 };
-
-type Prefs = { match_scope: 'same_college' | 'all_india'; match_same_gender_only: boolean };
 
 export default function Match() {
   return (
@@ -48,12 +47,11 @@ export default function Match() {
 }
 
 function Feed() {
-  const { session, profile } = useSession();
+  const { session } = useSession();
   const router = useRouter();
   const c = useTheme();
 
   const [cards, setCards] = useState<Candidate[]>([]);
-  const [prefs, setPrefs] = useState<Prefs | null>(null);
   const [remaining, setRemaining] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
@@ -63,14 +61,12 @@ function Feed() {
   const [cardHeight, setCardHeight] = useState(Dimensions.get('window').height);
 
   const load = useCallback(async () => {
-    const [{ data: feed }, { data: left }, { data: p }] = await Promise.all([
+    const [{ data: feed }, { data: left }] = await Promise.all([
       supabase.rpc('match_feed', { p_limit: 20 }),
       supabase.rpc('loots_remaining'),
-      supabase.rpc('my_match_prefs'),
     ]);
     setCards((feed as Candidate[]) ?? []);
     setRemaining(typeof left === 'number' ? left : null);
-    setPrefs(((p as Prefs[]) ?? [])[0] ?? null);
     setLoading(false);
   }, []);
 
@@ -122,51 +118,11 @@ function Feed() {
       }
     }
 
+    // Passes are uncapped, so decisions — not loots — are the honest unit here.
+    void countDecisionForAd();
+
     busy.current = false;
     setActing(false);
-  }
-
-  async function toggleScope() {
-    if (!prefs) return;
-    if (!profile?.college_id) {
-      Alert.alert(
-        'No college on your account',
-        'Scoping to a college needs a confirmed college email. Without one there is nothing to scope to, so Match shows everyone.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Get the badge', onPress: () => router.push('/(auth)/verify') },
-        ],
-      );
-      return;
-    }
-    const next = prefs.match_scope === 'same_college' ? 'all_india' : 'same_college';
-    setPrefs({ ...prefs, match_scope: next });
-    await supabase.from('profiles').update({ match_scope: next }).eq('id', session?.user.id ?? '');
-    setLoading(true);
-    await load();
-  }
-
-  async function toggleSameGender() {
-    if (!prefs) return;
-    if (!profile?.gender) {
-      Alert.alert(
-        'Set your gender first',
-        'This is a safety filter, not a dating preference. Add your gender in Edit profile, then turn it on.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Edit profile', onPress: () => router.push('/profile-edit' as Href) },
-        ],
-      );
-      return;
-    }
-    const next = !prefs.match_same_gender_only;
-    setPrefs({ ...prefs, match_same_gender_only: next });
-    await supabase
-      .from('profiles')
-      .update({ match_same_gender_only: next })
-      .eq('id', session?.user.id ?? '');
-    setLoading(true);
-    await load();
   }
 
   if (loading) {
@@ -184,23 +140,6 @@ function Feed() {
       <View style={[styles.bar, { borderBottomColor: c.border }]}>
         <Text style={[styles.h1, { color: c.text }]}>Match</Text>
         <View style={{ flex: 1 }} />
-        <Pressable onPress={toggleScope} hitSlop={8} accessibilityRole="button">
-          <Text style={{ color: c.accent, fontSize: 14, fontWeight: '600' }}>
-            {prefs?.match_scope === 'all_india' || !profile?.college_id
-              ? 'All India'
-              : 'My college'}
-          </Text>
-        </Pressable>
-        <Pressable onPress={toggleSameGender} hitSlop={8} accessibilityRole="button">
-          <Text
-            style={{
-              color: prefs?.match_same_gender_only ? c.accent : c.textSecondary,
-              fontSize: 14,
-              fontWeight: '600',
-            }}>
-            Same gender
-          </Text>
-        </Pressable>
         <Text style={{ color: c.textSecondary, fontSize: 13 }}>
           {remaining === null ? '' : `${remaining} left today`}
         </Text>
@@ -216,9 +155,7 @@ function Feed() {
       ) : cards.length === 0 ? (
         <View style={styles.centre}>
           <Text style={{ color: c.textSecondary, textAlign: 'center', lineHeight: 21 }}>
-            {prefs?.match_scope === 'same_college' && profile?.college_id
-              ? 'Nobody new at your college right now. Try All India above.'
-              : 'Nobody new right now. Check back later.'}
+            Nobody new right now. Check back later.
           </Text>
         </View>
       ) : (

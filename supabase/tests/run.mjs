@@ -636,79 +636,170 @@ for (const name of ['gina', 'greg', 'gus']) {
     `update profiles set username=$2, trust_tier=2, college_id=$3, created_at=now()-interval '30 days' where id=$1`,
     [u.id, name, college.id]);
 }
-const joinAs = (uid, cat = 'study') =>
-  asUser(uid, async () => (await db.query(`select join_group($1) id`, [cat])).rows[0].id);
+const createAs = (uid, name, desc = '') =>
+  asUser(uid, async () =>
+    (await db.query(`select create_group($1,$2) id`, [name, desc])).rows[0].id);
+const codeOf = async (id) => (await one(`select invite_code c from groups where id=$1`, [id])).c;
+const joinByCode = (uid, code) =>
+  asUser(uid, async () => (await db.query(`select join_group_by_code($1) id`, [code])).rows[0].id);
 
-console.log('\nGroups — joining and capacity');
-await check('first joiner creates Study 1', async () => {
-  const id = await joinAs(g.gina);
-  const r = await one(`select name, room_number rn, member_count mc from groups where id=$1`, [id]);
-  eq(r.name, 'Study 1'); eq(r.rn, 1); eq(r.mc, 1, 'member_count');
+console.log('\nGroups - creating and joining by code');
+let studyRoom;
+await check('creating a group makes the creator its owner and only member', async () => {
+  studyRoom = await createAs(g.gina, 'Sem 5 panic', 'notes and doubts');
+  const r = await one(
+    `select name, description d, owner_id o, member_count mc from groups where id=$1`, [studyRoom]);
+  eq(r.name, 'Sem 5 panic'); eq(r.d, 'notes and doubts');
+  eq(r.o, g.gina, 'owner'); eq(r.mc, 1, 'member_count');
 });
-await check('joining again returns the same room', async () => {
-  const a = await joinAs(g.gina);
-  const b = await joinAs(g.gina);
-  eq(a, b);
-  eq((await one(`select count(*) c from group_members where user_id=$1 and category='study'`, [g.gina])).c, 1);
+await check('a nameless group is refused', () =>
+  denied(g.gina, `select create_group('   ','')`));
+await check('the invite code lets someone else in', async () => {
+  const id = await joinByCode(g.greg, await codeOf(studyRoom));
+  eq(id, studyRoom);
+  eq((await one(`select member_count mc from groups where id=$1`, [studyRoom])).mc, 2);
 });
-await check('room at capacity spills into Study 2', async () => {
-  await db.query(`update groups set capacity=1 where name='Study 1'`);
-  const id = await joinAs(g.greg);
-  eq((await one(`select name from groups where id=$1`, [id])).name, 'Study 2');
+await check('joining twice is idempotent', async () => {
+  await joinByCode(g.greg, await codeOf(studyRoom));
+  eq((await one(`select count(*) c from group_members where group_id=$1 and user_id=$2`,
+    [studyRoom, g.greg])).c, 1);
 });
-await check('member_count tracks joins and leaves', async () => {
-  const before = (await one(`select member_count mc from groups where name='Study 2'`)).mc;
-  await asUser(g.greg, () => db.query(`select leave_group('study')`));
-  eq((await one(`select member_count mc from groups where name='Study 2'`)).mc, before - 1);
+await check('a wrong code joins nothing', () =>
+  denied(g.gus, `select join_group_by_code('ZZZZZZZZ')`));
+await check('the code is case-insensitive and trimmed', async () => {
+  const code = await codeOf(studyRoom);
+  eq(await joinByCode(g.greg, '  ' + code.toLowerCase() + ' '), studyRoom);
 });
-await check('a user cannot be in two rooms of one category', async () => {
-  const id2 = (await one(`select id from groups where name='Study 2'`)).id;
-  await denied(g.gina, `insert into group_members (group_id, user_id, category) values ($1,$2,'study')`, [id2, g.gina]);
+await check('a full group refuses new joiners', async () => {
+  await db.query(`update groups set capacity=2 where id=$1`, [studyRoom]);
+  await denied(g.gus, `select join_group_by_code($1)`, [await codeOf(studyRoom)]);
+  await db.query(`update groups set capacity=1024 where id=$1`, [studyRoom]);
 });
-await check('categories are independent', async () => {
-  const s = await joinAs(g.gina, 'sports');
-  eq((await one(`select name from groups where id=$1`, [s])).name, 'Sports 1');
-});
-await check('Tier 0 cannot join', async () => {
+await check('Tier 0 cannot create or join', async () => {
   await db.query(`update profiles set trust_tier=0 where id=$1`, [g.gus]);
-  await denied(g.gus, `select join_group('friends')`);
-});
-await check('banned user cannot join', async () => {
+  await denied(g.gus, `select create_group('nope','')`);
+  await denied(g.gus, `select join_group_by_code($1)`, [await codeOf(studyRoom)]);
   await db.query(`update profiles set trust_tier=2 where id=$1`, [g.gus]);
+});
+await check('a banned user cannot create or join', async () => {
   await db.query(`insert into bans (user_id,type,ends_at) values ($1,'temporary',now()+interval '5 days')`, [g.gus]);
-  await denied(g.gus, `select join_group('friends')`);
+  await denied(g.gus, `select create_group('nope','')`);
+  await denied(g.gus, `select join_group_by_code($1)`, [await codeOf(studyRoom)]);
   await db.query(`delete from bans where user_id=$1`, [g.gus]);
 });
-await check('membership cannot be forged directly', async () => {
-  const id = (await one(`select id from groups where name='Study 2'`)).id;
-  await denied(g.gus, `insert into group_members (group_id, user_id, category) values ($1,$2,'study')`, [id, g.gus]);
+await check('membership cannot be forged directly', () =>
+  denied(g.gus, `insert into group_members (group_id, user_id) values ($1,$2)`, [studyRoom, g.gus]));
+await check('a group is invisible to people who are not in it', async () => {
+  const rows = await asUser(g.gus, async () =>
+    (await db.query(`select id from groups where id=$1`, [studyRoom])).rows);
+  eq(rows.length, 0, 'non-member sees the group row');
 });
 
-console.log('\nGroups — posting');
-const studyRoom = await joinAs(g.gus);
-await check('member can post', () =>
-  asUser(g.gus, () => db.query(
-    `insert into group_messages (group_id, sender_id, body) values ($1,$2,'hello room')`, [studyRoom, g.gus])));
-await check('non-member cannot post', async () => {
-  const other = (await one(`select id from groups where name='Study 1'`)).id;
-  await denied(g.gus, `insert into group_messages (group_id, sender_id, body) values ($1,$2,'wrong room')`, [other, g.gus]);
+console.log('\nGroups - leaving, removal and invitations');
+await check('a member can leave, and the count follows', async () => {
+  await asUser(g.greg, () => db.query(`select leave_group($1)`, [studyRoom]));
+  eq((await one(`select member_count mc from groups where id=$1`, [studyRoom])).mc, 1);
 });
-await check('Tier 0 can READ group messages', async () => {
-  await db.query(`update profiles set trust_tier=0 where id=$1`, [g.gus]);
-  await asUser(g.gus, async () => {
-    const r = await db.query(`select count(*) c from group_messages`);
-    if (Number(r.rows[0].c) < 1) throw new Error('Tier 0 saw no messages');
-  });
-  await db.query(`update profiles set trust_tier=2 where id=$1`, [g.gus]);
+await check('someone who left may rejoin with the code', async () => {
+  eq(await joinByCode(g.greg, await codeOf(studyRoom)), studyRoom);
+});
+await check('the owner cannot leave their own group', () =>
+  denied(g.gina, `select leave_group($1)`, [studyRoom]));
+await check('only the owner can remove someone', () =>
+  denied(g.greg, `select remove_group_member($1,$2)`, [studyRoom, g.gina]));
+await check('the owner cannot remove themselves', () =>
+  denied(g.gina, `select remove_group_member($1,$2)`, [studyRoom, g.gina]));
+await check('a removed member cannot rejoin with the code', async () => {
+  await asUser(g.gina, () => db.query(`select remove_group_member($1,$2)`, [studyRoom, g.greg]));
+  eq((await one(`select count(*) c from group_members where group_id=$1 and user_id=$2`,
+    [studyRoom, g.greg])).c, 0, 'still a member');
+  await denied(g.greg, `select join_group_by_code($1)`, [await codeOf(studyRoom)]);
+});
+await check('an invitation is a request, not an instant re-add', async () => {
+  await asUser(g.gina, () => db.query(`select invite_to_group($1,$2)`, [studyRoom, g.greg]));
+  eq((await one(`select count(*) c from group_members where group_id=$1 and user_id=$2`,
+    [studyRoom, g.greg])).c, 0, 'added without consent');
+  eq((await one(`select count(*) c from group_invites where group_id=$1 and user_id=$2`,
+    [studyRoom, g.greg])).c, 1, 'no invite row');
+});
+await check('the invited person sees it, and accepting joins them', async () => {
+  const seen = await asUser(g.greg, async () =>
+    (await db.query(`select group_id from my_group_invites()`)).rows);
+  eq(seen.length, 1, 'invite not visible to the invitee');
+  await asUser(g.greg, () => db.query(`select accept_group_invite($1)`, [studyRoom]));
+  eq((await one(`select count(*) c from group_members where group_id=$1 and user_id=$2`,
+    [studyRoom, g.greg])).c, 1);
+});
+await check('accepting clears the invite and the removal', async () => {
+  eq((await one(`select count(*) c from group_invites where group_id=$1 and user_id=$2`,
+    [studyRoom, g.greg])).c, 0, 'invite left behind');
+  eq((await one(`select count(*) c from group_removals where group_id=$1 and user_id=$2`,
+    [studyRoom, g.greg])).c, 0, 'removal left behind');
+});
+await check('you cannot accept an invitation you were never sent', () =>
+  denied(g.gus, `select accept_group_invite($1)`, [studyRoom]));
+await check('declining removes the invitation without joining', async () => {
+  await asUser(g.gina, () => db.query(`select invite_to_group($1,$2)`, [studyRoom, g.gus]));
+  await asUser(g.gus, () => db.query(`select decline_group_invite($1)`, [studyRoom]));
+  eq((await one(`select count(*) c from group_invites where group_id=$1 and user_id=$2`,
+    [studyRoom, g.gus])).c, 0);
+  eq((await one(`select count(*) c from group_members where group_id=$1 and user_id=$2`,
+    [studyRoom, g.gus])).c, 0);
+});
+await check('only the owner invites', () =>
+  denied(g.greg, `select invite_to_group($1,$2)`, [studyRoom, g.gus]));
+await check('only the owner regenerates the code', () =>
+  denied(g.greg, `select regenerate_invite_code($1)`, [studyRoom]));
+await check('regenerating the code invalidates the old one', async () => {
+  const before = await codeOf(studyRoom);
+  await asUser(g.gina, () => db.query(`select regenerate_invite_code($1)`, [studyRoom]));
+  const after = await codeOf(studyRoom);
+  if (before === after) throw new Error('code did not change');
+  await denied(g.gus, `select join_group_by_code($1)`, [before]);
+});
+await check('only the owner can delete a group', () =>
+  denied(g.greg, `select delete_group($1)`, [studyRoom]));
+
+console.log('\nGroups - the invite code is not public');
+await check('my_groups shows the code to the owner and hides it from members', async () => {
+  const owner = await asUser(g.gina, async () =>
+    (await db.query(`select invite_code, is_owner from my_groups() where id=$1`, [studyRoom])).rows[0]);
+  const member = await asUser(g.greg, async () =>
+    (await db.query(`select invite_code, is_owner from my_groups() where id=$1`, [studyRoom])).rows[0]);
+  eq(owner.is_owner, true); eq(member.is_owner, false);
+  if (!owner.invite_code) throw new Error('owner cannot see the code');
+  eq(member.invite_code, null, 'member can read the code');
+});
+
+console.log('\nGroups - posting');
+await check('member can post', () =>
+  asUser(g.greg, () => db.query(
+    `insert into group_messages (group_id, sender_id, body) values ($1,$2,'hello room')`, [studyRoom, g.greg])));
+await check('non-member cannot post', () =>
+  denied(g.gus, `insert into group_messages (group_id, sender_id, body) values ($1,$2,'wrong room')`, [studyRoom, g.gus]));
+await check('a non-member cannot READ a private group message', async () => {
+  const rows = await asUser(g.gus, async () =>
+    (await db.query(`select id from group_messages where group_id=$1`, [studyRoom])).rows);
+  eq(rows.length, 0, 'outsider read a private group');
+});
+await check('group_thread refuses a non-member', async () => {
+  const rows = await asUser(g.gus, async () =>
+    (await db.query(`select id from group_thread($1)`, [studyRoom])).rows);
+  eq(rows.length, 0, 'outsider read the thread through the function');
+});
+await check('a member can read the thread', async () => {
+  const rows = await asUser(g.greg, async () =>
+    (await db.query(`select id from group_thread($1)`, [studyRoom])).rows);
+  if (rows.length < 1) throw new Error('member saw nothing');
 });
 await check('Tier 0 cannot POST', async () => {
-  await db.query(`update profiles set trust_tier=0 where id=$1`, [g.gus]);
-  await denied(g.gus, `insert into group_messages (group_id, sender_id, body) values ($1,$2,'sneaking in')`, [studyRoom, g.gus]);
-  await db.query(`update profiles set trust_tier=2 where id=$1`, [g.gus]);
+  await db.query(`update profiles set trust_tier=0 where id=$1`, [g.greg]);
+  await denied(g.greg, `insert into group_messages (group_id, sender_id, body) values ($1,$2,'sneaking in')`, [studyRoom, g.greg]);
+  await db.query(`update profiles set trust_tier=2 where id=$1`, [g.greg]);
 });
 await check('empty message refused', () =>
-  denied(g.gus, `insert into group_messages (group_id, sender_id, body) values ($1,$2,'   ')`, [studyRoom, g.gus]));
-await check('group messages are text only — no image column exists', async () => {
+  denied(g.greg, `insert into group_messages (group_id, sender_id, body) values ($1,$2,'   ')`, [studyRoom, g.greg]));
+await check('group messages are text only - no image column exists', async () => {
   const r = await one(`select count(*) c from information_schema.columns
     where table_name='group_messages' and column_name in ('image_url','video_url','media_url')`);
   eq(r.c, 0, 'media columns');
@@ -719,53 +810,68 @@ await check('group messages are not editable by anyone', async () => {
   eq(r.c, 0);
 });
 await check('rate limit stops a flood at 10/minute', async () => {
-  await db.query(`delete from group_messages where sender_id=$1`, [g.gus]);
+  await db.query(`delete from group_messages where sender_id=$1`, [g.greg]);
   for (let i = 0; i < 10; i++) {
-    await asUser(g.gus, () => db.query(
-      `insert into group_messages (group_id, sender_id, body) values ($1,$2,$3)`, [studyRoom, g.gus, 'msg ' + i]));
+    await asUser(g.greg, () => db.query(
+      `insert into group_messages (group_id, sender_id, body) values ($1,$2,$3)`, [studyRoom, g.greg, 'msg ' + i]));
   }
-  await denied(g.gus, `insert into group_messages (group_id, sender_id, body) values ($1,$2,'eleventh')`, [studyRoom, g.gus]);
-});
-await check('rate limit spans rooms, not just one', async () => {
-  const sports = await joinAs(g.gus, 'sports');
-  await denied(g.gus, `insert into group_messages (group_id, sender_id, body) values ($1,$2,'spillover')`, [sports, g.gus]);
-  await db.query(`delete from group_messages where sender_id=$1`, [g.gus]);
+  await denied(g.greg, `insert into group_messages (group_id, sender_id, body) values ($1,$2,'eleventh')`, [studyRoom, g.greg]);
+  await db.query(`delete from group_messages where sender_id=$1`, [g.greg]);
 });
 
-console.log('\nGroups — word filter');
+console.log('\nGroups - the list shows signs of life');
+await check('my_groups carries the last message and its time', async () => {
+  await asUser(g.greg, () => db.query(
+    `insert into group_messages (group_id, sender_id, body) values ($1,$2,'latest thing said')`, [studyRoom, g.greg]));
+  const row = await asUser(g.gina, async () =>
+    (await db.query(`select last_body, last_at from my_groups() where id=$1`, [studyRoom])).rows[0]);
+  eq(row.last_body, 'latest thing said');
+  if (!row.last_at) throw new Error('no last_at');
+});
+await check('my_groups lists only your own groups', async () => {
+  const mine = await asUser(g.gus, async () => (await db.query(`select id from my_groups()`)).rows);
+  eq(mine.length, 0, 'saw a group they are not in');
+});
+
+console.log('\nGroups - word filter');
 await check('blocked term is rejected', async () => {
   await db.query(`insert into blocked_terms (term) values ('cat')`);
-  await denied(g.gus, `insert into group_messages (group_id, sender_id, body) values ($1,$2,'look at that cat')`, [studyRoom, g.gus]);
+  await denied(g.greg, `insert into group_messages (group_id, sender_id, body) values ($1,$2,'look at that cat')`, [studyRoom, g.greg]);
 });
 await check('matching is on word boundaries, not substrings', () =>
-  // "concatenate" contains "cat". A LIKE '%cat%' filter would wrongly reject this
-  // — the Scunthorpe problem. Word boundaries must let it through.
-  asUser(g.gus, () => db.query(
-    `insert into group_messages (group_id, sender_id, body) values ($1,$2,'concatenate the strings')`, [studyRoom, g.gus])));
+  asUser(g.greg, () => db.query(
+    `insert into group_messages (group_id, sender_id, body) values ($1,$2,'concatenate the strings')`, [studyRoom, g.greg])));
 await check('filter is case-insensitive', () =>
-  denied(g.gus, `insert into group_messages (group_id, sender_id, body) values ($1,$2,'CAT!')`, [studyRoom, g.gus]));
+  denied(g.greg, `insert into group_messages (group_id, sender_id, body) values ($1,$2,'CAT!')`, [studyRoom, g.greg]));
 await check('word list is never readable by clients', async () => {
   const r = await one(`select count(*) c from information_schema.table_privileges
     where table_name='blocked_terms' and grantee in ('anon','authenticated')`);
   eq(r.c, 0);
 });
+await check('the filter does not apply to group names - owner decision', async () => {
+  const id = await createAs(g.gina, 'cat lovers', 'a group about cats');
+  eq((await one(`select name from groups where id=$1`, [id])).name, 'cat lovers');
+  await asUser(g.gina, () => db.query(`select delete_group($1)`, [id]));
+});
 
-console.log('\nGroups — 30-day retention');
-await check('messages older than 30 days are deleted, recent ones stay', async () => {
-  await asUser(g.gus, () => db.query(
-    `insert into group_messages (group_id, sender_id, body) values ($1,$2,'keep me')`,
-    [studyRoom, g.gus]));
+console.log('\nGroups - retention');
+await check('the 30-day purge is gone; history is kept', async () => {
+  eq((await one(`select count(*) c from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+     where n.nspname='public' and p.proname='purge_old_group_messages'`)).c, 0);
   await db.query(
     `insert into group_messages (group_id, sender_id, body, created_at)
-     values ($1,$2,'too old', now() - interval '31 days')`,
-    [studyRoom, g.gus]);
-  eq((await one(`select purge_old_group_messages() n`)).n, 1);
-  eq((await one(`select count(*) c from group_messages where body='too old'`)).c, 0);
-  eq((await one(`select count(*) c from group_messages where body='keep me'`)).c, 1);
+     values ($1,$2,'ancient', now() - interval '400 days')`, [studyRoom, g.greg]);
+  eq((await one(`select count(*) c from group_messages where body='ancient'`)).c, 1);
 });
-await check('clients cannot run the group-message purge', async () => {
-  eq((await one(`select has_function_privilege('authenticated','purge_old_group_messages()','execute') x`)).x, false);
-  eq((await one(`select has_function_privilege('anon','purge_old_group_messages()','execute') x`)).x, false);
+await check('deleting a group takes its messages and membership with it', async () => {
+  const id = await createAs(g.gina, 'temporary', '');
+  await joinByCode(g.gus, await codeOf(id));
+  await asUser(g.gus, () => db.query(
+    `insert into group_messages (group_id, sender_id, body) values ($1,$2,'here briefly')`, [id, g.gus]));
+  await asUser(g.gina, () => db.query(`select delete_group($1)`, [id]));
+  eq((await one(`select count(*) c from groups where id=$1`, [id])).c, 0);
+  eq((await one(`select count(*) c from group_members where group_id=$1`, [id])).c, 0);
+  eq((await one(`select count(*) c from group_messages where group_id=$1`, [id])).c, 0);
 });
 
 // ---------------------------------------------------------------------------
@@ -1295,9 +1401,14 @@ await check('a verified user can still search the directory', () =>
 // room capacity assigned them, which is not necessarily Study 1.
 const chattyRoom = (await one(
   `select group_id from group_messages group by group_id order by count(*) desc limit 1`)).group_id;
-await check('Tier 0 still gets sender names when reading a group', async () => {
+await check('a member gets sender names when reading a group', async () => {
+  // Groups became private on 2026-09-06, so this is about membership, not tier:
+  // a Tier 0 lurker who is not in the group now sees nothing at all, which the
+  // private-group section already covers.
   const room = chattyRoom;
-  await asUser(lurker, async () => {
+  const reader = (await one(
+    `select user_id from group_members where group_id=$1 limit 1`, [room])).user_id;
+  await asUser(reader, async () => {
     const rows = (await db.query(`select * from group_thread($1, 50)`, [room])).rows;
     if (!rows.length) throw new Error('no messages returned');
     if (rows.some(r => !r.username && !r.is_blocked)) throw new Error('sender name missing');
@@ -1307,6 +1418,9 @@ await check('group_thread collapses blocked senders instead of hiding them', asy
   const room = chattyRoom;
   const sender = (await one(`select sender_id from group_messages where group_id=$1 limit 1`, [room])).sender_id;
   const nosy2 = await mkUser('nosy2');
+  // A private group only shows itself to members, so the blocker has to be one.
+  await db.query(`insert into group_members (group_id, user_id) values ($1,$2)
+                  on conflict do nothing`, [room, nosy2]);
   await asUser(nosy2, () => db.query(`insert into blocks (blocker_id, blocked_id) values ($1,$2)`, [nosy2, sender]));
   await asUser(nosy2, async () => {
     const rows = (await db.query(`select * from group_thread($1, 50)`, [room])).rows;
@@ -1602,7 +1716,7 @@ await check('anon can execute nothing in public', async () => {
   eq(r.c, 0, 'functions executable by anon');
 });
 await check('service-role-only functions stay closed to authenticated', async () => {
-  for (const fn of ['apply_verification(uuid)', 'hash_email_code(text,text)', 'trips_word_filter(text)', 'purge_old_group_messages()']) {
+  for (const fn of ['apply_verification(uuid)', 'hash_email_code(text,text)', 'trips_word_filter(text)', 'new_invite_code()']) {
     const r = await one(`select has_function_privilege('authenticated', $1, 'execute') x`, [fn]);
     eq(r.x, false, fn);
   }
@@ -1634,7 +1748,12 @@ await check('the sweep leaves authenticated grants intact', async () => {
 });
 await check('the functions the app actually calls are still callable', async () => {
   for (const fn of ['current_tier()', 'match_feed(integer)', 'looted_you()', 'looted_you_count()',
-                    'join_group(group_category)', 'confirm_college_email(text)', 'open_dm_thread(uuid)',
+                    'create_group(text,text)', 'join_group_by_code(text)', 'leave_group(uuid)',
+                    'remove_group_member(uuid,uuid)', 'delete_group(uuid)',
+                    'regenerate_invite_code(uuid)', 'invite_to_group(uuid,uuid)',
+                    'accept_group_invite(uuid)', 'decline_group_invite(uuid)',
+                    'my_groups()', 'my_group_invites()', 'group_members_list(uuid)',
+                    'confirm_college_email(text)', 'open_dm_thread(uuid)',
                     'can_read_chat_image(text)', 'can_write_chat_image(text)',
                     'register_push_token(text)', 'unregister_push_token(text)',
                     'record_screenshot(uuid)', 'export_my_data()', 'my_blocks()',

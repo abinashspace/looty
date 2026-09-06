@@ -1,6 +1,9 @@
 /**
- * Optional gender. Only used by Match's "same gender only" safety toggle —
- * not a dating preference (CONTEXT.md §3.4).
+ * Optional gender, shown on your profile.
+ *
+ * It used to feed Match's "same gender only" safety filter, which was removed on
+ * 2026-09-06. Nothing filters on it now, so the copy no longer promises that it
+ * does. Still not a dating preference (CONTEXT.md §3.4).
  */
 
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -53,8 +56,8 @@ export function GenderChips({
         })}
       </View>
       <Text style={[styles.hint, { color: c.textSecondary }]}>
-        Only used if you turn on “same gender only” in Match. Not shown as a dating
-        filter.
+        Shown on your profile. Nothing filters on it, and it is not a dating
+        preference.
       </Text>
     </View>
   );

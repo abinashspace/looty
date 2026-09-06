@@ -1008,31 +1008,28 @@ await check('feed excludes self and anyone already decided on', async () => {
   if (ids.includes(noor)) throw new Error('already-looted user in feed');
   if (ids.includes(raj)) throw new Error('passed user in feed');
 });
-await check('default scope is same college only', async () => {
+// Both Match filters were removed on 2026-09-06. The columns survive, so the
+// risk is the feed quietly going on reading them: match_scope still defaults to
+// same_college, and with no toggle left a college user would have been pinned to
+// their own college for good.
+await check('the college scope no longer filters the feed', async () => {
+  await db.query(`update profiles set match_scope='same_college' where id=$1`, [mia]);
   const ids = await feedFor(mia);
-  if (ids.includes(far)) throw new Error('other-college user in same_college feed');
+  if (!ids.includes(far)) throw new Error('other-college user missing — scope still applied');
 });
-await check('all_india scope widens the feed', async () => {
-  await db.query(`update profiles set match_scope='all_india' where id=$1`, [mia]);
+await check('the same-gender toggle no longer filters the feed', async () => {
+  const man = await mkUser('man1', { gender: 'man' });
+  await db.query(`update profiles set match_same_gender_only=true where id=$1`, [mia]);
   const ids = await feedFor(mia);
-  if (!ids.includes(far)) throw new Error('other-college user missing from all_india feed');
+  if (!ids.includes(man)) throw new Error('opposite gender missing — filter still applied');
+  await db.query(`update profiles set match_same_gender_only=false where id=$1`, [mia]);
 });
-// A confirmed Gmail is full access since 2026-09-04, so most accounts have no
-// college. The default scope is same_college, and comparing to a null college
-// matched nobody — the feed was permanently empty for them.
-await check('a caller with no college still gets a feed on the default scope', async () => {
+await check('a caller with no college still gets a feed', async () => {
   const nomad = await mkUser('nomad', { tier: 1, collegeId: null });
   eq((await one(`select match_scope from profiles where id=$1`, [nomad])).match_scope,
     'same_college', 'fixture is on the default scope');
   const ids = await feedFor(nomad);
   if (ids.length === 0) throw new Error('collegeless caller got an empty feed');
-});
-await check('same-gender safety toggle filters the feed', async () => {
-  const man = await mkUser('man1', { gender: 'man' });
-  await db.query(`update profiles set match_same_gender_only=true where id=$1`, [mia]);
-  const ids = await feedFor(mia);
-  if (ids.includes(man)) throw new Error('opposite gender present with safety toggle on');
-  await db.query(`update profiles set match_same_gender_only=false where id=$1`, [mia]);
 });
 await check('blocked users never appear in the feed', async () => {
   const blocked = await mkUser('blk');

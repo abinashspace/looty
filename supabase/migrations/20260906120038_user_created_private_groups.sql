@@ -731,6 +731,41 @@ begin
 end;
 $$;
 
+-- The Groups tab badges pending invitations, which needs Realtime to see them.
+do $$
+begin
+  alter publication supabase_realtime add table public.group_invites;
+exception when duplicate_object then null;
+end;
+$$;
+
+-- Match lost its scope and same-gender filters on 2026-09-06. The columns stay
+-- for now, but the feed must stop reading them: with the toggles gone, anyone
+-- whose match_scope still says same_college would have been silently pinned to
+-- their own college with no way to change it, and no college means no feed.
+create or replace function public.match_feed(p_limit integer default 20)
+returns table (id uuid, username citext, display_name text, dp_url text, college_id uuid)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select p.id, p.username, p.display_name, p.dp_url, p.college_id
+  from public.profiles p
+  where public.current_tier() >= 1
+    and p.id <> auth.uid()
+    and p.trust_tier >= 1
+    and p.onboarding_complete
+    and not public.is_banned(p.id)
+    and not public.is_blocked_pair(auth.uid(), p.id)
+    and not exists (
+      select 1 from public.loots l
+      where l.actor_id = auth.uid() and l.target_id = p.id
+    )
+  order by random()
+  limit greatest(least(p_limit, 50), 1);
+$$;
+
 -- ---------------------------------------------------------------------------
 -- Grants
 -- ---------------------------------------------------------------------------

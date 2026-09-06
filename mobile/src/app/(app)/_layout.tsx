@@ -49,6 +49,8 @@ export default function AppLayout() {
         name="groups"
         options={{
           title: 'Groups',
+          tabBarBadge: badges.groups,
+          tabBarBadgeStyle: badgeStyle,
           tabBarIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} />,
         }}
       />

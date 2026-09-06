@@ -14,21 +14,26 @@ export function useTabBadges() {
   const { session, tier, isBanned } = useSession();
   const [chats, setChats] = useState<number | undefined>();
   const [looted, setLooted] = useState<number | undefined>();
+  const [groups, setGroups] = useState<number | undefined>();
 
   const load = useCallback(async () => {
     if (!session) {
       setChats(undefined);
       setLooted(undefined);
+      setGroups(undefined);
       return;
     }
 
     const chatOk = can('directMessage', tier, isBanned);
     const matchOk = can('lootyMatch', tier, isBanned);
 
-    const [{ data: threads }, { data: reqs }, { data: n }] = await Promise.all([
+    const groupOk = can('postInGroups', tier, isBanned);
+
+    const [{ data: threads }, { data: reqs }, { data: n }, { data: invites }] = await Promise.all([
       chatOk ? supabase.rpc('my_threads') : Promise.resolve({ data: [] as unknown[] }),
       chatOk ? supabase.rpc('my_friend_requests') : Promise.resolve({ data: [] as unknown[] }),
       matchOk ? supabase.rpc('looted_you_count') : Promise.resolve({ data: 0 }),
+      groupOk ? supabase.rpc('my_group_invites') : Promise.resolve({ data: [] as unknown[] }),
     ]);
 
     const unread = ((threads as { unread?: boolean }[] | null) ?? []).filter((t) => t.unread).length;
@@ -39,6 +44,9 @@ export function useTabBadges() {
 
     setChats(badge(unread + incoming));
     setLooted(badge(Number.isFinite(lootN) ? lootN : 0));
+    // A group invitation is the only thing that needs answering here — being in
+    // a busy group is not a notification, which is why unread counts stay out.
+    setGroups(badge(((invites as unknown[] | null) ?? []).length));
   }, [session, tier, isBanned]);
 
   useEffect(() => {
@@ -61,6 +69,11 @@ export function useTabBadges() {
         { event: '*', schema: 'public', table: 'friendships' },
         () => load(),
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'group_invites' },
+        () => load(),
+      )
       .subscribe();
     return () => {
       unsub();
@@ -69,5 +82,5 @@ export function useTabBadges() {
     };
   }, [load]);
 
-  return { chats, looted };
+  return { chats, looted, groups };
 }

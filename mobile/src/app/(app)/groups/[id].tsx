@@ -22,7 +22,13 @@ const SEND_ERRORS: Record<string, string> = {
   '42501': 'You need to join this room first.',
 };
 
-type Room = { id: string; category: string; room_number: number; member_count: number };
+type Room = {
+  id: string;
+  name: string;
+  description: string;
+  member_count: number;
+  owner_id: string;
+};
 
 export default function GroupRoom() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -38,7 +44,11 @@ export default function GroupRoom() {
   const load = useCallback(async () => {
     if (!id) return;
     const [{ data: r }, { data: msgs }, { data: mem }] = await Promise.all([
-      supabase.from('groups').select('id, category, room_number, member_count').eq('id', id).maybeSingle(),
+      supabase
+        .from('groups')
+        .select('id, name, description, member_count, owner_id')
+        .eq('id', id)
+        .maybeSingle(),
       supabase.rpc('group_thread', { p_group: id, p_limit: 50 }),
       supabase.from('group_members').select('group_id').eq('group_id', id).eq('user_id', session?.user.id ?? ''),
     ]);
@@ -92,7 +102,8 @@ export default function GroupRoom() {
     return SEND_ERRORS[error.code ?? ''] ?? SEND_ERRORS[error.message] ?? error.message;
   }
 
-  const title = room ? room.category.charAt(0).toUpperCase() + room.category.slice(1) : 'Group';
+  const title = room?.name ?? 'Group';
+  const isOwner = Boolean(room && session?.user.id && room.owner_id === session.user.id);
 
   async function blockSender(senderId: string) {
     if (!session?.user.id) return;
@@ -138,14 +149,18 @@ export default function GroupRoom() {
 
   function confirmLeave() {
     if (!room) return;
-    Alert.alert(`Leave ${title}?`, 'You can join again later. Messages stay in the room.', [
+    Alert.alert(`Leave ${title}?`, 'You can rejoin later with the code. Messages stay.', [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Leave',
         style: 'destructive',
         onPress: async () => {
-          const { error } = await supabase.rpc('leave_group', { p_category: room.category });
-          if (!error) router.back();
+          const { error } = await supabase.rpc('leave_group', { p_group: room.id });
+          if (error) {
+            Alert.alert('Could not leave', error.message);
+            return;
+          }
+          router.back();
         },
       },
     ]);
@@ -160,13 +175,20 @@ export default function GroupRoom() {
         <View style={{ flex: 1 }}>
           <Text style={[styles.title, { color: c.text }]}>{title}</Text>
           {room ? (
-            <Text style={{ color: c.textSecondary, fontSize: 12 }}>
-              Room {room.room_number} · {room.member_count}{' '}
-              {room.member_count === 1 ? 'member' : 'members'}
+            <Text style={{ color: c.textSecondary, fontSize: 12 }} numberOfLines={1}>
+              {room.member_count} {room.member_count === 1 ? 'member' : 'members'}
+              {room.description ? ` · ${room.description}` : ''}
             </Text>
           ) : null}
         </View>
-        {isMember ? (
+        {isOwner ? (
+          <Pressable
+            onPress={() => router.push(`/(app)/groups/manage?id=${room?.id ?? ''}`)}
+            hitSlop={8}
+            accessibilityRole="button">
+            <Text style={{ color: c.accent, fontSize: 14, fontWeight: '600' }}>Manage</Text>
+          </Pressable>
+        ) : isMember ? (
           <Pressable onPress={confirmLeave} hitSlop={8} accessibilityRole="button">
             <Text style={{ color: c.textSecondary, fontSize: 14 }}>Leave</Text>
           </Pressable>

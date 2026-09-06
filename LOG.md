@@ -15,6 +15,38 @@
 
 ---
 
+## 2026-09-06 — New logo: the speech-bubble face. Accent follows it again
+
+The eyes mark is replaced by a yellow speech bubble wearing a Groucho disguise on
+a violet ground. As icon geometry it is a straight improvement: square and
+full-bleed, where the eyes were 2:1 and had to be shrunk to survive Android's
+circular mask.
+
+All five assets recut. The violet ground is keyed out for the adaptive foreground
+and the splash; the source is a **JPEG**, so every hard edge carries a fringe of
+half-violet pixels and the alpha needs a 1px median before use. A PNG or SVG
+original would be visibly crisper at 48px — worth asking for if one exists. The
+monochrome inks the bubble body and knocks the face features out as holes, which
+is what keeps it readable once Android tints it flat.
+
+`accent` moves to the logo's `#36059D`, the second time it has followed the mark
+(`#3C0BA1` came from the eyes). Dark uses the same 259° hue lightened to
+`#996BFA`, since the brand violet is 1.5:1 on the dark ground. Every pair in both
+themes still clears 4.5:1. The splash and adaptive backgrounds are violet now
+rather than pale lavender, so launching no longer flashes a light screen before a
+violet icon, and the notification accent — still the original `#208AEF` blue until
+today — matches too.
+
+**Raised and overruled, recorded so it is a decision rather than an oversight:**
+both marks so far read as *concealment* — watching eyes, then a disguise — while
+Looty's safety story rests on the opposite, real students with College Verified
+badges and bans anchored to real identity. Owner's call: proceed with the new logo.
+
+Icons and splash are compiled into the binary, so unlike everything else today
+this needs a new build and cannot ship over the air.
+
+---
+
 ## 2026-09-06 — Groups rebuilt, Match stripped, and the app becomes 18+
 
 A long design session with the owner, then the work. Four changes, and two of

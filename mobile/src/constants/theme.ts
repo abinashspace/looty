@@ -8,13 +8,13 @@
  * would have shipped two different products to two users of the same phone.
  *
  * Note on `accent`: it is the one interactive colour — buttons, links, the active
- * tab, unread dots, and your own chat bubbles. It is the **logo's** violet,
- * #3C0BA1, so the icon and the interface are the same colour — settled by the
- * owner on 2026-09-05, choosing the mark over the brighter #7C3AED originally
- * given as Primary.
+ * tab, unread dots, and your own chat bubbles. It is the **logo's** violet, and
+ * it has moved once: #3C0BA1 came from the eyes mark, and #36059D from the
+ * speech-bubble mark that replaced it on 2026-09-06. The rule has not changed —
+ * whatever the icon is, the interface matches it.
  *
- * Dark cannot use #3C0BA1: at 1.6:1 on this ground it is unreadable. It uses the
- * same hue (260°) lightened until it passes — #9B70F5, 5.5:1 on the background.
+ * Dark cannot use #36059D: at 1.5:1 on this ground it is unreadable. It uses the
+ * same hue (259°) lightened until it passes — #996BFA, 5.3:1 on the background.
  * `accentText` is what sits *on* accent, so it flips: white on light, near-black
  * on dark.
  *
@@ -48,7 +48,7 @@ export const Colors = {
     // Darkened just enough to pass; visually the same colour.
     textSecondary: '#776F8A',
     border: '#E9E3F5',
-    accent: '#3C0BA1',
+    accent: '#36059D',
     accentText: '#FFFFFF',
     danger: '#C4342B',
     online: '#22C55E',
@@ -60,7 +60,7 @@ export const Colors = {
     bubble: '#2A2140',
     textSecondary: '#A79FBC',
     border: '#2E2842',
-    accent: '#9B70F5',
+    accent: '#996BFA',
     accentText: '#1E1B2E',
     danger: '#F0776C',
     online: '#22C55E',

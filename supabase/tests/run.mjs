@@ -322,7 +322,7 @@ await check('onboarding completes without a profile photo', async () => {
   const { rows: [u] } = await db.query(
     `insert into auth.users (email) values ('nophoto@gmail.com') returning id`);
   await db.query(
-    `update profiles set username='nophoto_u', display_name='No Photo',
+    `update profiles set date_of_birth=date '2000-01-01', username='nophoto_u', display_name='No Photo',
        course_years=4, start_year=2024 where id=$1`, [u.id]);
   eq((await one(`select onboarding_complete c, dp_url d from profiles where id=$1`, [u.id])).c, true);
   eq((await one(`select dp_url d from profiles where id=$1`, [u.id])).d ?? 'null', 'null');
@@ -336,7 +336,7 @@ for (const name of ['ana', 'bo', 'cy']) {
   users[name] = u.id;
   // Usernames must be 3–20 chars, so the short fixture keys get a suffix.
   await db.query(
-    `update profiles set username=$2, trust_tier=1, college_id=$3,
+    `update profiles set date_of_birth=date '2000-01-01', username=$2, trust_tier=1, college_id=$3,
        created_at = now() - interval '30 days' where id=$1`,
     [u.id, `${name}_looty`, college.id]);
 }
@@ -414,7 +414,7 @@ for (const name of ['ufa', 'ufb']) {
   const { rows: [u] } = await db.query(`insert into auth.users (email) values ($1) returning id`, [`${name}@iitb.ac.in`]);
   uf[name] = u.id;
   await db.query(
-    `update profiles set username=$2, trust_tier=1, college_id=$3, created_at=now()-interval '30 days' where id=$1`,
+    `update profiles set date_of_birth=date '2000-01-01', username=$2, trust_tier=1, college_id=$3, created_at=now()-interval '30 days' where id=$1`,
     [u.id, `${name}_looty`, college.id]);
 }
 await asUser(uf.ufa, () => db.query(
@@ -483,7 +483,7 @@ await check('blocked user cannot discover the block via my_blocks', async () => 
 await check('unblocking removes the person from my_blocks', async () => {
   const { rows: [x] } = await db.query(`insert into auth.users (email) values ('ublk@iitb.ac.in') returning id`);
   await db.query(
-    `update profiles set username='ublk_looty', trust_tier=1, college_id=$2, created_at=now()-interval '30 days' where id=$1`,
+    `update profiles set date_of_birth=date '2000-01-01', username='ublk_looty', trust_tier=1, college_id=$2, created_at=now()-interval '30 days' where id=$1`,
     [x.id, college.id]);
   await asUser(cy, () => db.query(`insert into blocks (blocker_id, blocked_id) values ($1,$2)`, [cy, x.id]));
   eq((await asUser(cy, async () =>
@@ -624,6 +624,38 @@ await check('Tier 2 user can do everything Tier 1 could', async () => {
   eq((await one(`select can_report() r`)).r, true);
 });
 
+console.log('\nAge gate (18+)');
+await check('an under-18 date of birth is refused outright', async () => {
+  const { rows: [kid] } = await db.query(
+    `insert into auth.users (email) values ('kid@iitb.ac.in') returning id`);
+  await throws(
+    `update profiles set date_of_birth = current_date - interval '17 years' where id=$1`,
+    [kid.id], 'under_18');
+});
+await check('exactly 18 today is allowed', async () => {
+  const { rows: [adult] } = await db.query(
+    `insert into auth.users (email) values ('exactly18@iitb.ac.in') returning id`);
+  await db.query(
+    `update profiles set date_of_birth = current_date - interval '18 years' where id=$1`,
+    [adult.id]);
+  eq((await one(`select is_adult(date_of_birth) a from profiles where id=$1`, [adult.id])).a, true);
+});
+await check('onboarding does not complete without a date of birth', async () => {
+  const { rows: [nb] } = await db.query(
+    `insert into auth.users (email) values ('nodob@iitb.ac.in') returning id`);
+  await db.query(
+    `update profiles set username='nodob_u', display_name='No DOB', dp_url='https://x.test/d.jpg',
+       course_years=4, start_year=2024 where id=$1`, [nb.id]);
+  eq((await one(`select onboarding_complete oc from profiles where id=$1`, [nb.id])).oc, false);
+  await db.query(`update profiles set date_of_birth=date '2000-01-01' where id=$1`, [nb.id]);
+  eq((await one(`select onboarding_complete oc from profiles where id=$1`, [nb.id])).oc, true);
+});
+await check('clients cannot run the underage trigger themselves', async () => {
+  eq((await one(
+    `select has_function_privilege('authenticated','reject_underage_profile()','execute') x`)).x,
+    false);
+});
+
 // ---------------------------------------------------------------------------
 // Phase 3 — groups
 // ---------------------------------------------------------------------------
@@ -633,7 +665,7 @@ for (const name of ['gina', 'greg', 'gus']) {
   const { rows: [u] } = await db.query(`insert into auth.users (email) values ($1) returning id`, [`${name}@iitb.ac.in`]);
   g[name] = u.id;
   await db.query(
-    `update profiles set username=$2, trust_tier=2, college_id=$3, created_at=now()-interval '30 days' where id=$1`,
+    `update profiles set date_of_birth=date '2000-01-01', username=$2, trust_tier=2, college_id=$3, created_at=now()-interval '30 days' where id=$1`,
     [u.id, name, college.id]);
 }
 const createAs = (uid, name, desc = '') =>
@@ -745,6 +777,19 @@ await check('declining removes the invitation without joining', async () => {
     [studyRoom, g.gus])).c, 0);
   eq((await one(`select count(*) c from group_members where group_id=$1 and user_id=$2`,
     [studyRoom, g.gus])).c, 0);
+});
+await check('declining an invitation does not undo a removal', async () => {
+  // Inviting is an offer. If declining cleared the removal, someone the owner
+  // threw out could decline and then walk back in with the code they still have.
+  await asUser(g.gina, () => db.query(`select remove_group_member($1,$2)`, [studyRoom, g.greg]));
+  await asUser(g.gina, () => db.query(`select invite_to_group($1,$2)`, [studyRoom, g.greg]));
+  await asUser(g.greg, () => db.query(`select decline_group_invite($1)`, [studyRoom]));
+  eq((await one(`select count(*) c from group_removals where group_id=$1 and user_id=$2`,
+    [studyRoom, g.greg])).c, 1, 'removal was cleared by a decline');
+  await denied(g.greg, `select join_group_by_code($1)`, [await codeOf(studyRoom)]);
+  // Put greg back for the tests that follow.
+  await asUser(g.gina, () => db.query(`select invite_to_group($1,$2)`, [studyRoom, g.greg]));
+  await asUser(g.greg, () => db.query(`select accept_group_invite($1)`, [studyRoom]));
 });
 await check('only the owner invites', () =>
   denied(g.greg, `select invite_to_group($1,$2)`, [studyRoom, g.gus]));
@@ -886,7 +931,7 @@ async function mkUser(name, { tier = 2, collegeId = college.id, gender = 'woman'
   // onboarding_complete is derived by trigger, so the fixture has to supply every
   // field a real profile would have rather than just asserting the flag.
   await db.query(
-    `update profiles set username=$2, trust_tier=$3, college_id=$4, gender=$5,
+    `update profiles set date_of_birth=date '2000-01-01', username=$2, trust_tier=$3, college_id=$4, gender=$5,
        dp_url='https://example.test/dp.jpg', display_name=$6,
        course_years=4, start_year=extract(year from now())::smallint,
        created_at=now()-interval '30 days' where id=$1`,
@@ -1437,11 +1482,13 @@ await check('group_thread collapses blocked senders instead of hiding them', asy
 console.log('\nNotification prefs');
 await check('signup creates a prefs row', async () =>
   eq((await one(`select count(*) c from notification_prefs where user_id=$1`, [u1.id])).c, 1));
-await check('defaults: groups off, the rest on', async () => {
+await check('defaults: everything on, groups included', async () => {
+  // Groups used to default off because a 1024-member room would not stop
+  // buzzing. Private groups are the opposite case, so silence became the bug.
   const r = await one(
     `select dms, friend_requests, connections, groups from notification_prefs where user_id=$1`,
     [u1.id]);
-  eq(r.dms, true); eq(r.friend_requests, true); eq(r.connections, true); eq(r.groups, false);
+  eq(r.dms, true); eq(r.friend_requests, true); eq(r.connections, true); eq(r.groups, true);
 });
 await check('owner can change their own prefs', async () => {
   await asUser(u1.id, () =>
@@ -1500,8 +1547,8 @@ await check('clients have no table grants on push_tokens', async () => {
     where table_name='push_tokens' and grantee in ('anon','authenticated')`);
   eq(r.c, 0);
 });
-await check('should_notify defaults groups off and the rest on', async () => {
-  eq((await one(`select should_notify($1,'groups') x`, [u2.id])).x, false);
+await check('should_notify defaults everything on, groups included', async () => {
+  eq((await one(`select should_notify($1,'groups') x`, [u2.id])).x, true);
   eq((await one(`select should_notify($1,'dms') x`, [u2.id])).x, true);
 });
 await check('should_notify respects a flipped pref', async () => {

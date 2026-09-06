@@ -9,7 +9,7 @@
 > also get a dated entry in [`LOG.md`](LOG.md), which is append-only and never
 > edited. CONTEXT = what is true now. LOG = how it got that way.
 >
-> Last updated: 2026-09-05
+> Last updated: 2026-09-06
 
 ---
 
@@ -30,20 +30,29 @@ social norm the badge supports, plus moderation, rather than a wall the database
 enforces. Every claim in this file that says otherwise has been rewritten; if you
 find one that was missed, it is a bug in the document. See LOG.md, 2026-09-04.
 
+**Looty is 18+ as of 2026-09-06.** Date of birth is collected at sign-up and
+under-18 accounts are refused. Read the limits of that honestly: it is
+**self-declared and not verified**, so it narrows DPDP exposure rather than
+discharging it, and it excludes 17-year-old first-years — a real share of Indian
+intake. Both were put to the owner and accepted. Ads became **personalised** on
+the strength of it; if the age gate is ever removed, they must go back to
+non-personalised, because that was the thing standing in for age data.
+
 **Looty is a friends app, not a dating app.** This is a deliberate position, not a
 technicality. It was originally specced with a Dating group category and a
 dating-shaped matching feature. That was removed because:
 
-- Dating functionality forces an 18+ rating on both app stores.
+- Dating functionality forces an 18+ rating on both app stores. *(The app is now
+  18+ anyway, so this particular reason no longer bites — the other two stand,
+  and the positioning is kept on its own merits.)*
 - India's DPDP Act requires verifiable parental consent for under-18 users and bans
   behavioural advertising aimed at them, which collided with the ad-supported tier.
 - Student dating is a crowded market; student friend-finding is not.
 
 **The repositioning only holds if it is carried through everywhere.** Nothing in the
 UI, copy, notifications, onboarding, or the Play Store listing may use romantic
-framing — no "crush", no hearts, no "someone likes you 😍". A single line like "find
-your campus crush" in the store description undoes it and puts the rating back to
-18+. This constraint is permanent and applies to every future feature.
+framing — no "crush", no hearts, no "someone likes you 😍". This is now about what
+Looty is rather than about the rating, and it is still permanent.
 
 ### Vocabulary (use these words, they are load-bearing)
 
@@ -100,16 +109,16 @@ live as Tier 2 on 2026-08-31.
 | 0 | College domain list | **No longer blocking.** Downgraded 2026-09-04 from launch gate to badge coverage — a missing domain now costs a badge, not access. Live has `thangavelu.edu.in` plus probe domain `looty.test.invalid` |
 | 1 | Auth, verification, trust tiers, profile | Schema, screens and Edge Function done. **Missing: Google Sign-In, real email delivery** |
 | 2 | Friends, DMs, block/report | Done — schema, tests, inbox, threads, search, requests. **Verified live as Tier 2** |
-| 3 | Groups | Done — schema, tests, room list and live chat. **Verified live as Tier 2** |
-| 4 | Looty Match | Done — schema, tests, feed, quota, Looted-you paywall. **Verified live as Tier 2** (loot, mutual Connect, quota) |
+| 3 | Groups | **Rebuilt 2026-09-06.** No default rooms; user-created private groups with invite codes, owner controls, and 1024 members each. Schema, tests and screens done; not yet walked on a device |
+| 4 | Looty Match | Done — feed, quota, Looted-you paywall. **Verified live as Tier 2.** Both filters (same-gender, college scope) removed 2026-09-06; only the daily counter remains |
 | 5 | Automatic moderation engine | Done — schema, tests, restriction screen and appeal form |
-| 6 | Ads + subscription | **Not started — needs AdMob and Play Console** |
+| 6 | Ads + subscription | **Placement only.** An interstitial is due every 5 Match decisions and the hook is built; the ad itself needs an AdMob account and a native module, so `present()` is empty. Ads are now personalised (18+) |
 | 7 | Play Store requirements | Account deletion and notification prefs are **built**. Listing drafted in `legal/`. Privacy is hosted at https://abinashspace.github.io/looty/. Play Console still needed |
 
 ### What exists right now
 
 ```
-supabase/migrations/   37 migrations. Phase 1: colleges + domain allowlist,
+supabase/migrations/   39 migrations. Phase 1: colleges + domain allowlist,
                        profiles, verifications + bans + access gate, RLS +
                        column grants. Phase 2: blocks + friendships, threads +
                        messages, reports, Phase 2 RLS. Then: college email
@@ -129,9 +138,10 @@ supabase/migrations/   37 migrations. Phase 1: colleges + domain allowlist,
                        connection-end closes thread, unfriend ends DM, my_blocks,
                        thread_reads + inbox unread, sign-in email grants Tier 1,
                        1:1 typing heartbeat, inbox last_kind + collegeless
-                       Match fallback
+                       Match fallback, user-created private groups (38),
+                       18+ age gate (39)
 supabase/functions/    issue-college-code, delete-account (both deployed)
-supabase/tests/run.mjs 231 behaviour tests, run with `npm run test:db`
+supabase/tests/run.mjs 257 behaviour tests, run with `npm run test:db`
 supabase/seed.sql      sample colleges; domain list deliberately EMPTY
                        (a missing domain now costs a badge, not access)
 mobile/                Expo app (SDK 57, RN 0.86), Android-only
@@ -187,7 +197,7 @@ Supabase — `auth.users`, `auth.uid()` and the client roles are stubbed.
 
 ### Verified so far
 
-`npm run test:db` passes 231/231. `npx tsc --noEmit` is clean. The UI has rendered
+`npm run test:db` passes 257/257. `npx tsc --noEmit` is clean. The UI has rendered
 on a real Android device (2026-08-31, again 2026-09-01 through profile, groups,
 and a Study send) and once in a browser (2026-08-30). Chat images and push-token
 RPCs were verified against the live API on 2026-09-01. The 1:1 image picker was

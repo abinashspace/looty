@@ -15,6 +15,75 @@
 
 ---
 
+## 2026-09-06 — Groups rebuilt, Match stripped, and the app becomes 18+
+
+A long design session with the owner, then the work. Four changes, and two of
+them reverse decisions this file recorded as settled.
+
+**Groups are now user-created and private.** The three global rooms are deleted.
+Anyone at Tier 1 makes a group with a name and description and shares an eight
+character invite code; there is no directory and no way to find a group you were
+not given a code for. 1024 members each. The owner alone mints, shares and
+revokes the code, and alone removes members or deletes the group.
+
+Leaving and being removed are deliberately different. You leave on your own and
+can rejoin with the code. The owner removing you writes a `group_removals` row
+that blocks the code — otherwise removal would be theatre, since the code they
+hold is the same one. Only an invitation undoes it, and an invitation is always
+*accepted*, never applied: someone who left a group to get away from it must not
+be dragged back in silently.
+
+**Three settings reversed with it.** Group notifications now default **on**,
+typing indicators are wanted in groups, and the 30-day purge is **gone**. All
+three existed because a group meant 1024 strangers; none of them fit six friends
+in a private room. The purge removal makes `legal/privacy.md`, the hosted page
+and the in-app privacy screen wrong, so all three were rewritten in the same
+change.
+
+**Match lost both filters.** No same-gender toggle, no All India / My college
+scope — just the daily counter. An ad placement fires every five *decisions*;
+loots and passes both count, because passing is uncapped and a free user only
+gets ten loots, so an ad every five loots would have shown twice a day and earned
+nothing. The ad itself does not exist: AdMob needs an account and a native module.
+
+**The app is 18+.** Date of birth at sign-up, under-18 refused by trigger, and
+personalised ads instead of non-personalised. This reverses part of 2026-08-28,
+which removed the dating framing *and* the age gate together to avoid exactly
+this. Two things were put to the owner and accepted:
+
+  * A self-declared date of birth is not verification. A 16-year-old types a year
+    and is through, so this narrows DPDP exposure rather than discharging it. The
+    old position — hold no age data, treat everyone as possibly a minor, never
+    behaviourally target anyone — was commercially weaker and legally stronger.
+  * It excludes 17-year-old first-years, who are a real share of Indian intake
+    and arguably the segment a friends app most wants. Owner: "idc about 1st years."
+
+**Tabs reordered** to Looted you, Match, Chats, Groups, You.
+
+**Four bugs found while building, three of them mine.**
+
+  * `can_post_to_group` carried the 10-per-minute flood limit inside its body.
+    Rewriting the function dropped it silently. The suite caught it.
+  * `invite_to_group` cleared the removal when the invitation was *sent*, so
+    declining an invitation quietly restored the code access that being removed
+    had taken away. It now clears on accept.
+  * Migration 39 reinstated `dp_url` in `sync_onboarding_complete`, undoing
+    migration 28's decision that photos are optional — it would have un-onboarded
+    everyone without one. And the trigger fires on a fixed column list, so
+    `date_of_birth` had to be added to it or setting the date alone would never
+    have recomputed the flag.
+  * Not mine, but exposed by the change: `group_messages_read` was `using (true)`
+    and `group_thread` checked only that a caller existed. Both were correct for
+    public rooms and would have handed any private group's messages to any signed
+    in user who knew its id.
+
+Tests **257**, up from 231.
+
+**Not built.** The ad itself, and typing indicators in groups — `thread_typing`
+keys on threads and groups are not threads, so that needs its own mechanism.
+
+---
+
 ## 2026-09-06 — 1:1 photos walked end to end. The device checklist is finally empty
 
 The `crypto` fix was rebuilt and installed on both phones, and the whole photo path

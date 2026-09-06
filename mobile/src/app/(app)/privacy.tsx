@@ -29,7 +29,7 @@ export default function Privacy() {
       <Body>
         We store the email you sign in with, the college email you confirm (private
         — other students never see it), your profile, messages, and optional
-        notification settings. We do not collect date of birth. We do not sell
+        notification settings. Looty is 18+, so we ask your date of birth and refuse accounts under 18. We do not sell
         data. Ads, if they ship, are non-personalised for everyone.
       </Body>
       <View style={styles.gap} />

@@ -40,14 +40,14 @@
         <tr><td>Account email (Google or the address you sign up with)</td><td>Sign in</td></tr>
         <tr><td>College email, once you confirm it</td><td>Adds the College Verified badge; also the strongest identifier a permanent ban is anchored to (stored as a hash, not the raw address)</td></tr>
         <tr><td>Username, display name, profile photo, course length, college</td><td>Your profile and Looty Match</td></tr>
-        <tr><td>Gender, if you set it</td><td>Optional Match filter (“only show me the same gender”)</td></tr>
+        <tr><td>Gender, if you set it</td><td>Shown on your profile</td></tr>
         <tr><td>Messages you send (text; photos in 1:1 chats only)</td><td>Delivering chat</td></tr>
         <tr><td>Friend requests, blocks, reports, loots</td><td>The product, and automatic safety</td></tr>
         <tr><td>Device push token, if you allow notifications</td><td>Sending the notifications you turned on</td></tr>
         <tr><td>App diagnostics we cannot avoid (crash logs from the store)</td><td>Fixing the app</td></tr>
       </tbody>
     </table>
-    <p>We do <strong>not</strong> collect date of birth. There is no age gate. We do <strong>not</strong> ask for an ID card or a phone number (those columns exist in the database from an abandoned path and are unused).</p>
+    <p>Looty is <strong>18+</strong>. We ask for your date of birth at sign-up and refuse accounts under 18. We do <strong>not</strong> ask for an ID card or a phone number (those columns exist in the database from an abandoned path and are unused).</p>
 
     <h2>What we do not do</h2>
     <ul>
@@ -61,14 +61,14 @@
       <li><strong>Tier 0 (not confirmed):</strong> your own profile only. You can read group rooms.</li>
       <li><strong>Tier 1 (email confirmed):</strong> other students can see your username, display name, photo and college.</li>
       <li><strong>Tier 2 (college confirmed):</strong> the same, plus a College Verified badge. They cannot see your college email.</li>
-      <li><strong>Chat:</strong> people you are friends with, or Connected with, see messages in that thread. Group rooms are public to every Looty user (text only).</li>
+      <li><strong>Chat:</strong> people you are friends with, or Connected with, see messages in that thread. Groups are private: only members can read one, and the only way in is an invite code from its owner (text only).</li>
       <li><strong>Photos in Connected chats</strong> are hidden until the other person taps. That is a courtesy, not encryption — the file still sits on our storage for that thread.</li>
     </ul>
 
     <h2>How long we keep it</h2>
     <ul>
       <li>Your account and messages until you delete the account, or we close the service.</li>
-      <li>Group messages: 30-day rolling window.</li>
+      <li>Group messages are kept as long as the group exists. Deleting a group deletes everything in it.</li>
       <li>A <strong>permanent ban</strong> keeps a hash of your sign-in email, and of your college email if you confirmed one, after the account is gone, so the same mailbox cannot sign up again. If that ban is lifted, those hashes are deleted.</li>
     </ul>
 

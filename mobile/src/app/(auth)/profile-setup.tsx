@@ -29,6 +29,42 @@ const COURSES = [
   { label: 'Other', years: 3 },
 ];
 
+/** Digits only, punctuated as the user types: 01/02/2003. */
+function formatDob(raw: string): string {
+  const d = raw.replace(/\D/g, '').slice(0, 8);
+  if (d.length <= 2) return d;
+  if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`;
+  return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
+}
+
+/**
+ * Strict: rejects 31/02 rather than rolling it into March, which is what `new
+ * Date` would do and would quietly shift someone's birthday.
+ */
+function parseDob(v: string): Date | null {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(v);
+  if (!m) return null;
+  const [day, month, year] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  if (year < 1900 || year > new Date().getFullYear()) return null;
+  const d = new Date(year, month - 1, day);
+  if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) return null;
+  return d;
+}
+
+/** Mirrors is_adult() in Postgres. The server is the one that enforces it. */
+function isAdult(d: Date | null): boolean {
+  if (!d) return false;
+  const cutoff = new Date();
+  cutoff.setFullYear(cutoff.getFullYear() - 18);
+  return d <= cutoff;
+}
+
+function iso(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
 
 export default function ProfileSetup() {
@@ -39,6 +75,7 @@ export default function ProfileSetup() {
   const [displayName, setDisplayName] = useState('');
   const [courseIdx, setCourseIdx] = useState<number | null>(null);
   const [gender, setGender] = useState<string | null>(null);
+  const [dob, setDob] = useState('');
   const [photo, setPhoto] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,8 +88,22 @@ export default function ProfileSetup() {
     return null;
   }, [username]);
 
+  // Typed as DD/MM/YYYY. A date picker would be friendlier, but every option is
+  // a native module and therefore a new build; this ships over the air.
+  const dobDate = useMemo(() => parseDob(dob), [dob]);
+  const dobError = useMemo(() => {
+    if (dob.length < 10) return null;
+    if (!dobDate) return 'Use DD/MM/YYYY.';
+    if (!isAdult(dobDate)) return 'You must be 18 or over to use Looty.';
+    return null;
+  }, [dob, dobDate]);
+
   const ready =
-    USERNAME_RE.test(username) && displayName.trim().length > 0 && courseIdx !== null;
+    USERNAME_RE.test(username) &&
+    displayName.trim().length > 0 &&
+    courseIdx !== null &&
+    dobDate !== null &&
+    isAdult(dobDate);
 
   const pickPhoto = useCallback(async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -93,6 +144,7 @@ export default function ProfileSetup() {
           display_name: displayName.trim(),
           course_years: COURSES[courseIdx].years,
           start_year: new Date().getFullYear(),
+          date_of_birth: dobDate ? iso(dobDate) : null,
           gender,
           ...(dpUrl ? { dp_url: dpUrl } : {}),
         })
@@ -141,6 +193,18 @@ export default function ProfileSetup() {
         maxLength={20}
         error={usernameError}
         hint="How people find you. Changeable once every 14 days."
+        editable={!busy}
+      />
+
+      <Field
+        label="Date of birth"
+        value={dob}
+        onChangeText={(t) => setDob(formatDob(t))}
+        placeholder="DD/MM/YYYY"
+        keyboardType="number-pad"
+        maxLength={10}
+        error={dobError}
+        hint="Looty is 18+."
         editable={!busy}
       />
 

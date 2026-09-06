@@ -19,15 +19,17 @@ Store listing.
 | Account email (Google or the address you sign up with) | Sign in |
 | College email, once you confirm it | Adds the College Verified badge; also the strongest identifier a permanent ban is anchored to (stored as a hash, not the raw address, in `banned_identities`) |
 | Username, display name, profile photo, course length, college | Your profile and Looty Match |
-| Gender, if you set it | Optional Match filter (“only show me the same gender”) |
+| Date of birth | Confirming you are 18 or over. Looty is 18+ |
+| Gender, if you set it | Shown on your profile |
 | Messages you send (text; photos in 1:1 chats only) | Delivering chat |
 | Friend requests, blocks, reports, loots | The product, and automatic safety |
 | Device push token, if you allow notifications | Sending the notifications you turned on |
 | App diagnostics we cannot avoid (crash logs from the store) | Fixing the app |
 
-We do **not** collect date of birth. There is no age gate. We do **not** ask for
-an ID card or a phone number (those columns exist in the database from an
-abandoned path and are unused).
+Looty is **18+**. We ask for your date of birth at sign-up and refuse accounts
+under 18. We do not verify it beyond what you tell us. We do **not** ask for an
+ID card or a phone number (those columns exist in the database from an abandoned
+path and are unused).
 
 ## What we do not do
 
@@ -40,13 +42,14 @@ abandoned path and are unused).
 
 ## Who can see what
 
-- **Tier 0 (not confirmed):** your own profile only. You can read group rooms.
+- **Tier 0 (not confirmed):** your own profile only.
 - **Tier 1 (email confirmed):** other students can see your username, display
   name, photo and college.
 - **Tier 2 (college confirmed):** the same, plus a College Verified badge. They
   cannot see your college email.
 - **Chat:** people you are friends with, or Connected with, see messages in that
-  thread. Group rooms are public to every Looty user (text only).
+  thread. **Groups are private**: only members can read a group, and the only
+  way in is an invite code from its owner (text only).
 - **Photos in Connected chats** are hidden until the other person taps. That is
   a courtesy, not encryption — the file still sits on our storage for that
   thread.
@@ -54,8 +57,8 @@ abandoned path and are unused).
 ## How long we keep it
 
 - Your account and messages until you delete the account, or we close the
-  service.
-- Group messages: 30-day rolling window.
+  service. That includes group messages: a private group keeps its history, and
+  deleting the group deletes everything in it.
 - A **permanent ban** keeps a hash of your sign-in email, and of your college
   email if you confirmed one, after the account is gone, so the same mailbox
   cannot sign up again. If that ban is lifted, those hashes are deleted.

@@ -364,10 +364,10 @@ begin
     raise exception 'blocked';
   end if;
 
-  -- An invitation is the owner's way of undoing a removal.
-  delete from public.group_removals r
-   where r.group_id = p_group and r.user_id = p_user;
-
+  -- The removal is NOT cleared here. Inviting someone is an offer, and a
+  -- declined offer must leave them exactly as they were — otherwise declining
+  -- would quietly restore the code access that removing them took away.
+  -- accept_group_invite() clears it.
   insert into public.group_invites (group_id, user_id, invited_by)
   values (p_group, p_user, auth.uid())
   on conflict (group_id, user_id) do update set created_at = now();
@@ -406,6 +406,9 @@ begin
   on conflict do nothing;
   delete from public.group_invites i
    where i.group_id = p_group and i.user_id = auth.uid();
+  -- Accepting is what undoes a removal, not being offered.
+  delete from public.group_removals r
+   where r.group_id = p_group and r.user_id = auth.uid();
   return p_group;
 end;
 $$;
@@ -765,6 +768,12 @@ as $$
   order by random()
   limit greatest(least(p_limit, 50), 1);
 $$;
+
+-- Group notifications were off by default because, in the words of the original
+-- migration, "a 1024-member room would otherwise wake the phone constantly".
+-- A private group of six friends is the opposite case: silence is the bug.
+alter table public.notification_prefs alter column groups set default true;
+update public.notification_prefs set groups = true where groups = false;
 
 -- ---------------------------------------------------------------------------
 -- Grants

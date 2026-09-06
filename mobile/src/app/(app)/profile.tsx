@@ -34,7 +34,7 @@ const PREF_DEFAULTS: Prefs = {
   dms: true,
   friend_requests: true,
   connections: true,
-  groups: false,
+  groups: true,
 };
 
 export default function Profile() {
@@ -193,9 +193,9 @@ export default function Profile() {
 
       <Text style={[styles.section, { color: c.text }]}>Notifications</Text>
       <Body>
-        These are what Looty will send you, once notifications are on. Group rooms
-        stay off unless you turn them on — a thousand people talking is not a
-        notification.
+        These are what Looty will send you, once notifications are on. Groups are
+        included — they are private now, and a group you chose to be in is worth
+        hearing from.
       </Body>
       <Toggle
         label="Direct messages"

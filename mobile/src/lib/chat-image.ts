@@ -10,6 +10,7 @@
  * original if manipulation fails. Chat images are not cropped square.
  */
 
+import * as Crypto from 'expo-crypto';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 
 import { jpegBytesFromUri } from './jpeg-bytes';
@@ -38,7 +39,12 @@ export async function uploadChatImage(opts: {
 }): Promise<string> {
   const local = await downscaleChatImage(opts.uri, opts.sourceWidth);
   const bytes = await jpegBytesFromUri(local);
-  const path = `${opts.userId}/${opts.threadId}/${crypto.randomUUID()}.jpg`;
+  // Crypto.randomUUID(), not the global crypto.randomUUID(). `crypto` is a Web
+  // API that Expo Go happens to polyfill and a bare Hermes runtime does not, so
+  // the global form threw "Property 'crypto' doesn't exist" in the first native
+  // build and photo sending was dead. Nothing caught it earlier because this path
+  // had never been walked outside Expo Go. See LOG.md, 2026-09-06.
+  const path = `${opts.userId}/${opts.threadId}/${Crypto.randomUUID()}.jpg`;
   const { error } = await supabase.storage
     .from('chat-images')
     .upload(path, bytes, { contentType: 'image/jpeg', upsert: false });

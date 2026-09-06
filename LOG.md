@@ -15,6 +15,42 @@
 
 ---
 
+## 2026-09-06 — Photo sending was dead in the native build: `crypto` does not exist
+
+**1:1 photo send, the last unwalked flow, was broken.** Walked it for the first
+time on the Samsung in the EAS build, as `@ameesha` in a fresh Connected thread
+with `@priya`. The picker opened, the image was chosen, and the composer showed:
+
+> Property 'crypto' doesn't exist
+
+`chat-image.ts` built its storage path with the **global** `crypto.randomUUID()`.
+`crypto` is a Web API. Expo Go happens to polyfill it; a bare Hermes runtime does
+not. So every photo upload threw before reaching Supabase, and no message was ever
+written. Fixed by using `expo-crypto`, already a dependency, whose `randomUUID()`
+is synchronous and returns the same V4 shape.
+
+**Why nothing caught this.** 229 database tests cannot see a client-side global.
+Typecheck cannot either — `crypto` is in the DOM lib types, so TypeScript
+considered it perfectly valid. And the flow had never been walked outside Expo Go,
+where it works. It took a native build plus a second account to surface a one-line
+bug that made a shipped feature completely non-functional. A grep for other bare
+Web-API globals in `mobile/src` found none.
+
+**Also confirmed on this run.** `FLAG_SECURE` behaves identically in the native
+build — 0 bytes inside a Connected chat, 78KB after leaving. The collegeless Match
+fallback from migration 37 works on device: `@priya` and `@ameesha` both have no
+college, both saw a real feed on the **default** scope, and the chip correctly read
+"All India" rather than claiming a filter that cannot apply. Mutual loot created
+the Connected thread.
+
+**Worth knowing for Play.** On Android 12 the picker triggers a system prompt,
+"Allow Looty to access photos and media on your device?" — broad media access,
+which Play's Photo and Video Permissions policy scrutinises. On 13+ the scoped
+photo picker is used instead and asks for nothing. `minSdk` is 24, so older devices
+will hit the broad prompt. Worth checking before the store declaration.
+
+---
+
 ## 2026-09-06 — First EAS build. The screenshot notice is broken, not an Expo Go artifact
 
 **First native build of this project.** EAS preview profile, APK, `app.looty.android`

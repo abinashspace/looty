@@ -476,10 +476,14 @@ No video. **No content moderation** — these are friend-gated, so the risk is l
   tap-to-reveal** — these chats are between strangers, unlike DMs, which makes them
   the app's main unsolicited-image risk.
 - **Screenshot detection notifies the other person.** It does not block. See §7.
-- Filters: college scope (same college / all India, **default same college**), plus
-  an opt-in "same gender only" safety toggle. Gender is optional, set on profile
-  setup or You → Edit profile. The toggle asks you to set gender first if it is
-  empty. Not a dating preference.
+- **No filters.** The college scope and the "same gender only" toggle were both
+  removed on 2026-09-06; the header carries only the daily counter. `match_scope`
+  and `match_same_gender_only` still exist as columns but `match_feed()` no longer
+  reads them — leaving that in would have pinned any user with a college to it
+  permanently, with no toggle left to change it. Gender is still collected, is
+  shown on the profile, and filters nothing.
+- An interstitial ad is due every **5 decisions** (loots and passes alike, since
+  passing is uncapped). The placement exists; the ad does not, pending AdMob.
 
 ### 3.5 Safety
 
@@ -884,9 +888,9 @@ That is accepted; RLS still enforces them.
 
 ### Assumptions never explicitly confirmed
 
-Flag if any of these are wrong: image blur in connected chats; non-personalised ads
-app-wide; college-scope and same-gender filters in Match; unmatch/leave; message
-retention (DMs indefinite, groups 30-day rolling); notification granularity; read
+Flag if any of these are wrong: image blur in connected chats; **personalised** ads
+(changed 2026-09-06 with the 18+ gate); unmatch/leave; message retention (DMs and
+group messages both indefinite since 2026-09-06); notification granularity; read
 receipts in DMs only, no last-seen. Inbox unread (you have not opened since they
 last wrote) is built; that is not a read receipt. Typing indicators are built in
 1:1 chats only — groups of a thousand do not get them — and were walked on two

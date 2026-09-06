@@ -11,8 +11,18 @@
  */
 
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/avatar';
@@ -31,6 +41,8 @@ type Member = {
 
 type Group = { id: string; name: string; invite_code: string | null; is_owner: boolean };
 
+type Found = { id: string; username: string | null; display_name: string | null; dp_url: string | null };
+
 export default function ManageGroup() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -39,6 +51,9 @@ export default function ManageGroup() {
   const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState('');
+  const [found, setFound] = useState<Found[]>([]);
+  const [invited, setInvited] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -56,6 +71,31 @@ export default function ManageGroup() {
       load();
     }, [load]),
   );
+
+  // Debounced, same as the DM search. Invitations are how a removed member gets
+  // back in, so this cannot only live behind the invite code.
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setFound([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      const { data } = await supabase.rpc('search_users', { p_query: q, p_limit: 10 });
+      const mine = new Set(members.map((m) => m.id));
+      setFound(((data as Found[]) ?? []).filter((u) => !mine.has(u.id)));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query, members]);
+
+  async function invite(u: Found) {
+    const { error } = await supabase.rpc('invite_to_group', { p_group: id, p_user: u.id });
+    if (error) {
+      Alert.alert('Could not invite', error.message);
+      return;
+    }
+    setInvited((prev) => [...prev, u.id]);
+  }
 
   async function shareCode() {
     if (!group?.invite_code) return;
@@ -170,6 +210,47 @@ export default function ManageGroup() {
         <Button label="Generate a new code" variant="secondary" onPress={confirmRegenerate} />
 
         <Text style={[styles.section, { color: c.textSecondary, paddingTop: 12 }]}>
+          ADD SOMEONE
+        </Text>
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search by username"
+          placeholderTextColor={c.textSecondary}
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={[
+            styles.search,
+            { color: c.text, backgroundColor: c.backgroundElement, borderColor: c.border },
+          ]}
+        />
+        <Text style={{ color: c.textSecondary, fontSize: 13, lineHeight: 18 }}>
+          They get an invitation to accept — nobody is added without agreeing.
+        </Text>
+        {found.map((u) => (
+          <View
+            key={u.id}
+            style={[styles.row, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
+            <Avatar uri={u.dp_url} name={u.display_name} username={u.username} size={40} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: c.text, fontWeight: '600' }} numberOfLines={1}>
+                {u.display_name ?? u.username ?? 'Someone'}
+              </Text>
+              <Text style={{ color: c.textSecondary, fontSize: 12.5 }} numberOfLines={1}>
+                @{u.username}
+              </Text>
+            </View>
+            {invited.includes(u.id) ? (
+              <Text style={{ color: c.textSecondary, fontSize: 13 }}>Invited</Text>
+            ) : (
+              <Pressable onPress={() => invite(u)} hitSlop={8} accessibilityRole="button">
+                <Text style={{ color: c.accent, fontSize: 13, fontWeight: '600' }}>Invite</Text>
+              </Pressable>
+            )}
+          </View>
+        ))}
+
+        <Text style={[styles.section, { color: c.textSecondary, paddingTop: 12 }]}>
           MEMBERS · {members.length}
         </Text>
         {members.map((m) => (
@@ -205,6 +286,7 @@ const styles = StyleSheet.create({
   page: { padding: 20, gap: 12 },
   h1: { fontSize: 26, fontWeight: '700', letterSpacing: -0.5 },
   section: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6 },
+  search: { borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 15 },
   code: {
     borderWidth: 1,
     borderRadius: 14,

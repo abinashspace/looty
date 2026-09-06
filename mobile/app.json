@@ -13,7 +13,7 @@
     "android": {
       "package": "app.looty.android",
       "adaptiveIcon": {
-        "backgroundColor": "#FAF8FF",
+        "backgroundColor": "#36059D",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -26,18 +26,18 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FAF8FF",
+          "backgroundColor": "#36059D",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 160,
           "dark": {
-            "backgroundColor": "#100D18"
+            "backgroundColor": "#36059D"
           }
         }
       ],
       [
         "expo-notifications",
         {
-          "color": "#208AEF",
+          "color": "#3C0BA1",
           "defaultChannel": "default"
         }
       ],

@@ -36,13 +36,6 @@ const COURSES = [
   { label: 'Other', years: 3 },
 ];
 
-/** YYYY-MM-DD from the database back into the DD/MM/YYYY the field shows. */
-function fromIso(iso: string | null): string {
-  if (!iso) return '';
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
-}
-
 /** Digits only, punctuated as the user types: 01/02/2003. */
 function formatDob(raw: string): string {
   const d = raw.replace(/\D/g, '').slice(0, 8);
@@ -95,7 +88,7 @@ export default function ProfileSetup() {
     return i >= 0 ? i : null;
   });
   const [gender, setGender] = useState<string | null>(profile?.gender ?? null);
-  const [dob, setDob] = useState(() => fromIso(profile?.date_of_birth ?? null));
+  const [dob, setDob] = useState('');
   const [photo, setPhoto] = useState<string | null>(null);
   // The profile arrives after first render, so the useState initialisers above
   // see null and fall back to blank. Hydrate once it lands — otherwise the
@@ -112,7 +105,6 @@ export default function ProfileSetup() {
       if (i >= 0) setCourseIdx(i);
     }
     if (profile.gender) setGender(profile.gender);
-    if (profile.date_of_birth) setDob(fromIso(profile.date_of_birth));
   }, [profile]);
 
   const [busy, setBusy] = useState(false);

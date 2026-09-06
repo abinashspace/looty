@@ -30,7 +30,6 @@ export type Profile = {
   display_name: string | null;
   dp_url: string | null;
   college_id: string | null;
-  date_of_birth: string | null;
   course_years: number | null;
   start_year: number | null;
   end_year: number | null;
@@ -42,7 +41,7 @@ export type Profile = {
 };
 
 const PROFILE_COLUMNS =
-  'id, username, display_name, dp_url, college_id, course_years, start_year, end_year, gender, trust_tier, created_at, phone_verified_at, onboarding_complete, date_of_birth';
+  'id, username, display_name, dp_url, college_id, course_years, start_year, end_year, gender, trust_tier, created_at, phone_verified_at, onboarding_complete';
 
 /** Where a user is in signup. Drives which screen the root layout shows. */
 export type SignupStep =
